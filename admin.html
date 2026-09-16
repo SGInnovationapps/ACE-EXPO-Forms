@@ -6,7 +6,7 @@
 <title>ACE EXPO｜管理ページ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Roboto+Mono:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Roboto:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
   :root{
     --chalk:#F2F3EF; --paper:#FFFFFF; --ink:#131A2B;
@@ -14,12 +14,13 @@
     --muted:#7C8598; --hair:#E2E3DE; --sold:#B4462F; --ok:#1F7A4D;
     --display:"Oswald",sans-serif;
     --jp:"Zen Kaku Gothic New",sans-serif;
-    --mono:"Roboto Mono",monospace;
+    --mono:"Roboto","Zen Kaku Gothic New",sans-serif;   /* 0に斜線が入らない書体 */
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%}
   body{background:var(--chalk);color:var(--ink);font-family:var(--jp);line-height:1.7;
-    -webkit-font-smoothing:antialiased;padding-bottom:60px}
+    -webkit-font-smoothing:antialiased;
+    font-feature-settings:"tnum" 1;padding-bottom:60px}
   button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   :focus-visible{outline:3px solid var(--mat);outline-offset:2px}
   .wrap{max-width:760px;margin:0 auto;padding:0 20px}
@@ -42,14 +43,6 @@
   .stamp{font-size:10.5px;color:#8FA0C4;text-align:right;padding:6px 20px 0;max-width:760px;margin:0 auto}
 
   /* login */
-  .gate{max-width:380px;margin:60px auto;padding:0 20px;text-align:center}
-  .gate h1{font-family:var(--display);font-size:24px;letter-spacing:.08em;margin-bottom:6px}
-  .gate p{font-size:12.5px;color:var(--muted);margin-bottom:22px}
-  .gate input{width:100%;padding:14px;border:1px solid var(--hair);border-radius:11px;
-    background:var(--paper);font-size:16px;font-family:var(--jp);text-align:center}
-  .gate button{width:100%;margin-top:12px;padding:15px;border-radius:12px;
-    background:var(--mat);color:#fff;font-weight:900;font-size:15px}
-  .gate .err{margin-top:14px;font-size:12.5px;color:var(--sold);font-weight:700}
 
   /* cards */
   .sec{margin-top:26px}
@@ -103,6 +96,10 @@
   .mini.warn{border-color:var(--sold);color:var(--sold)}
   .mini[disabled]{opacity:.45}
 
+  .xlsx{display:block;width:100%;margin-top:14px;padding:14px;border-radius:12px;
+    background:#1F7A4D;color:#fff;font-weight:900;font-size:14.5px;text-align:center}
+  .xlsx:active{transform:scale(.99)}
+  .xlsx[disabled]{opacity:.55}
   .search{width:100%;margin-top:14px;padding:12px 14px;border:1px solid var(--hair);
     border-radius:11px;background:var(--paper);font-size:16px;font-family:var(--jp)}
   .empty{padding:26px;text-align:center;color:var(--muted);font-size:12.5px}
@@ -125,20 +122,12 @@
     body{background:#fff;padding:0}
   }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
-<!-- ===== 合言葉 ===== -->
-<div class="gate" id="gate">
-  <h1>ACE EXPO</h1>
-  <p>管理ページ　合言葉を入力してください</p>
-  <input id="key" type="password" placeholder="合言葉" autocomplete="current-password">
-  <button id="enter">開く</button>
-  <p class="err" id="gate-err" hidden></p>
-</div>
-
 <!-- ===== 本体 ===== -->
-<div id="app" hidden>
+<div id="app">
   <header class="top">
     <div class="top-in">
       <div class="mark" id="mark">ACE EXPO<span id="mark-sub">管理ページ</span></div>
@@ -167,11 +156,10 @@
 /* =========================================================================
    ACE EXPO 管理ページ
    GAS_URL は申込ページと同じ /exec URL を貼ってください。
-   合言葉はスプレッドシートの「設定」シート adminKey で変更します。
+   このページは合言葉なしで開けます。URLは管理者のみに共有してください。
    ========================================================================= */
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzXnCuvgst-1st8DSxwdSkhWqb3Qqqmq8movTYobCWxZHrKT_Hv3NT2NkG6gB4dhEEf1g/exec";   // ← GASの /exec URL を貼る
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwwj-7s7ZtKnaPFG7IZnedg57mWKueImwus48gmqfoiNrc_CS8ou2AmHp-1r3Db_yT-3w/exec";   // ← GASの /exec URL を貼る
 
-let KEY = "";
 let DATA = null;
 
 const yen = n => "¥" + Number(n || 0).toLocaleString("ja-JP");
@@ -182,9 +170,8 @@ const esc = s => String(s == null ? "" : s)
 const DEMO = {
   config:{ eventEn:"ACE EXPO", eventName:"エース体操クラブ",
     eventDate:"2026年11月15日(日)", venue:"エース体操クラブ本校", lineId:"@ace-gym",
-    visitLead:"来場には事前予約が必要です。時間帯を選んで、電子チケットを受け取ってください。",
+    visitLead:"来場には事前予約が必要です。時間帯と人数を選んで、公式LINEへ予約書を送信してください。",
     orderLead:"ふわこっぺの事前注文です。エース体操クラブ本校１階受付で事前清算となります。クラブ開館時間帯にお声がけください。当日は、ブースで注文番号を伝えて商品をお受け取りください。",
-    ticketNote:"当日は受付でこの画面をご提示ください。",
     orderNote:"お支払いは本校１階受付にて事前清算です。当日はブースで注文番号をお伝えください。" },
   visit:{
     slots:[
@@ -210,12 +197,12 @@ const DEMO = {
       {name:"あげこっぺ きな粉",price:180,qty:12,amount:2160},
       {name:"ツナマヨ",price:300,qty:9,amount:2700}
     ],
-    menu:[], count:14, itemCount:78, sales:23980,
+    menu:[{name:"たまごサラダ",price:280},{name:"ツナマヨ",price:300},{name:"ウインナー",price:300},{name:"生チョコ",price:360},{name:"あげこっぺ きな粉",price:180},{name:"ポテトサラダ",price:280}], count:14, allCount:15, cancelled:1, itemCount:78, sales:23980,
     paidCount:9, paidAmount:15200, unpaidCount:5, unpaidAmount:8780, notReceived:14,
     rows:[
-      {no:"K-014",name:"山田 太郎",tel:"09012345678",count:6,total:1860,detail:"たまごサラダ×2 / 生チョコ×2 / ウインナー×2",memo:"",paid:false,received:false,at:"11/2 09:15"},
-      {no:"K-013",name:"佐藤 花子",tel:"",count:4,total:1240,detail:"ツナマヨ×2 / いちごジャム×2",memo:"受け取りは午後",paid:true,received:false,at:"11/1 22:02"},
-      {no:"K-012",name:"鈴木 一郎",tel:"",count:3,total:840,detail:"あげこっぺ きな粉×2 / ポテトサラダ×1",memo:"",paid:true,received:true,at:"11/1 17:33"}
+      {no:"K-014",name:"山田 太郎",tel:"09012345678",count:6,total:1860,detail:"たまごサラダ×2 / 生チョコ×2 / ウインナー×2",memo:"",paid:false,received:false,status:"確定",at:"11/2 09:15"},
+      {no:"K-013",name:"佐藤 花子",tel:"",count:4,total:1240,detail:"ツナマヨ×2 / いちごジャム×2",memo:"受け取りは午後",paid:true,received:false,status:"確定",at:"11/1 22:02"},
+      {no:"K-012",name:"鈴木 一郎",tel:"",count:3,total:840,detail:"あげこっぺ きな粉×2 / ポテトサラダ×1",memo:"",paid:true,received:true,status:"キャンセル",at:"11/1 17:33"}
     ]
   },
   updatedAt:"（サンプル表示）"
@@ -224,7 +211,7 @@ const DEMO = {
 /* ---------- 通信 ---------- */
 async function load(){
   if(!GAS_URL){ DATA = DEMO; return true; }
-  const res = await fetch(`${GAS_URL}?mode=admin&key=${encodeURIComponent(KEY)}`, { cache:"no-store" });
+  const res = await fetch(`${GAS_URL}?mode=admin`, { cache:"no-store" });
   const r = await res.json();
   if(!r.ok) throw new Error(r.message || "読み込みに失敗しました");
   DATA = r.data;
@@ -235,7 +222,7 @@ async function update(target, no, value){
   if(!GAS_URL){ toast("デモ表示のため保存されません", true); return false; }
   const res = await fetch(GAS_URL, {
     method:"POST",
-    body: JSON.stringify({ type:"update", key:KEY, target, no, value })
+    body: JSON.stringify({ type:"update", target, no, value })
   });
   const r = await res.json();
   if(!r.ok){ toast(r.message || "更新できませんでした", true); return false; }
@@ -327,6 +314,7 @@ function renderOrder(){
       <div class="kpi"><p class="l">清算済</p><p class="v">${o.paidCount}</p><p class="s">${yen(o.paidAmount)}</p></div>
       <div class="kpi ${o.unpaidCount ? "alert" : ""}"><p class="l">未清算</p><p class="v">${o.unpaidCount}</p><p class="s">${yen(o.unpaidAmount)}</p></div>
       <div class="kpi"><p class="l">未受取</p><p class="v">${o.notReceived}</p><p class="s">件</p></div>
+      <div class="kpi"><p class="l">取消</p><p class="v">${o.cancelled || 0}</p><p class="s">件</p></div>
     </div>`;
 
   const tally = o.tally.length ? `
@@ -345,20 +333,26 @@ function renderOrder(){
       </table>
     </div>` : '<p class="empty">まだ注文はありません。</p>';
 
-  const rows = o.rows.map(r => `
-    <tr data-search="${esc(r.no + r.name + r.tel)}">
+  const rows = o.rows.map(r => {
+    const dead = (r.status || "確定") === "キャンセル";
+    return `
+    <tr class="${dead ? "off" : ""}" data-search="${esc(r.no + r.name + r.tel)}">
       <td class="no">${esc(r.no)}</td>
       <td>${esc(r.name)}</td>
       <td class="num">${r.count}</td>
       <td class="num">${yen(r.total)}</td>
       <td class="wrapcell">${esc(r.detail)}</td>
-      <td><span class="pill ${r.paid ? "yes" : "no"}">${r.paid ? "清算済" : "未清算"}</span></td>
-      <td><button class="mini ${r.paid ? "" : "warn"}" data-act="pay" data-no="${esc(r.no)}"
-            data-val="${r.paid ? "未払" : "支払済"}">${r.paid ? "未清算に戻す" : "清算済にする"}</button></td>
-      <td><button class="mini" data-act="receive" data-no="${esc(r.no)}"
-            data-val="${r.received ? "未受取" : "受取済"}">${r.received ? "受取を戻す" : "受取済にする"}</button></td>
+      <td>${dead ? '<span class="pill no">取消済</span>'
+                 : `<span class="pill ${r.paid ? "yes" : "no"}">${r.paid ? "清算済" : "未清算"}</span>`}</td>
+      <td>${dead ? "" : `<button class="mini ${r.paid ? "" : "warn"}" data-act="pay" data-no="${esc(r.no)}"
+            data-val="${r.paid ? "未払" : "支払済"}">${r.paid ? "未清算に戻す" : "清算済にする"}</button>`}</td>
+      <td>${dead ? "" : `<button class="mini" data-act="receive" data-no="${esc(r.no)}"
+            data-val="${r.received ? "未受取" : "受取済"}">${r.received ? "受取を戻す" : "受取済にする"}</button>`}</td>
+      <td><button class="mini ${dead ? "" : "warn"}" data-act="order" data-no="${esc(r.no)}"
+            data-val="${dead ? "確定" : "キャンセル"}">${dead ? "取消を戻す" : "注文取消"}</button></td>
       <td>${r.at}</td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
 
   document.getElementById("p-order").innerHTML = `
     <section class="sec">
@@ -366,7 +360,8 @@ function renderOrder(){
       ${kpi}
     </section>
     <section class="sec">
-      <div class="sec-head"><i class="chip"></i><h2>ITEMS</h2><small>メニュー別の合計（仕込み数）</small></div>
+      <div class="sec-head"><i class="chip"></i><h2>ITEMS</h2><small>発注書（メニュー別の必要数）</small></div>
+      <button class="xlsx" id="export-xlsx">発注書をExcelで出力する</button>
       ${tally}
     </section>
     <section class="sec">
@@ -374,7 +369,7 @@ function renderOrder(){
       <input class="search" id="osearch" type="search" placeholder="注文番号・お名前で絞り込む">
       <div class="tablewrap">
         <table>
-          <thead><tr><th>注文番号</th><th>お名前</th><th>点数</th><th>金額</th><th>明細</th><th>清算</th><th></th><th></th><th>受付</th></tr></thead>
+          <thead><tr><th>注文番号</th><th>お名前</th><th>点数</th><th>金額</th><th>明細</th><th>清算</th><th></th><th></th><th></th><th>受付</th></tr></thead>
           <tbody id="obody">${rows}</tbody>
         </table>
       </div>
@@ -384,6 +379,8 @@ function renderOrder(){
 
   bindSearch("osearch", "obody");
   bindActions();
+  const xb = document.getElementById("export-xlsx");
+  if(xb) xb.onclick = exportXlsx;
 }
 
 function renderConfig(){
@@ -396,7 +393,6 @@ function renderConfig(){
     ["公式LINE ID", c.lineId],
     ["来場予約タブの説明文", c.visitLead],
     ["注文タブの説明文", c.orderLead],
-    ["チケットの注意書き", c.ticketNote],
     ["注文の支払い案内", c.orderNote]
   ];
   document.getElementById("p-config").innerHTML = `
@@ -405,6 +401,74 @@ function renderConfig(){
       ${rows.map(r => `<dl class="setrow"><dt>${esc(r[0])}</dt><dd>${esc(r[1]) || "<span style='color:var(--muted)'>未設定</span>"}</dd></dl>`).join("")}
       <p class="hint">これらはスプレッドシートの「設定」シートで変更します。変更後は、スプレッドシート上部のメニュー「ACE EXPO → 変更をすぐ反映する」を押すと、申込ページにすぐ反映されます。時間帯・定員は「時間帯」シート、メニューは「メニュー」シートです。</p>
     </section>`;
+}
+
+/* ---------- 発注書のExcel出力 ---------- */
+function exportXlsx(){
+  if(typeof XLSX === "undefined"){ toast("Excel機能を読み込めませんでした", true); return; }
+
+  const o = DATA.order, c = DATA.config;
+  const now = new Date();
+  const stamp = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ` +
+                `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+
+  // メニュー全件に注文数を突き合わせる（0個の商品も残して発注漏れを防ぐ）
+  const qtyOf = {};
+  o.tally.forEach(t => qtyOf[t.name] = t.qty);
+  const base = (o.menu && o.menu.length)
+    ? o.menu.map(m => ({ name:m.name, price:m.price, qty:qtyOf[m.name] || 0 }))
+    : o.tally.map(t => ({ name:t.name, price:t.price, qty:t.qty }));
+  // メニューにない商品（過去メニューなど）も拾う
+  o.tally.forEach(t => { if(!base.some(b => b.name === t.name)) base.push({ name:t.name, price:t.price, qty:t.qty }); });
+
+  /* --- シート1：発注書 --- */
+  const head = [
+    ["ふわこっぺ　発注書"],
+    [],
+    ["イベント", c.eventName || ""],
+    ["開催日",   c.eventDate || ""],
+    ["会場",     c.venue || ""],
+    ["出力日時", stamp],
+    ["注文件数", `${o.count}件（キャンセル${o.cancelled || 0}件を除く）`],
+    [],
+    ["No", "メニュー名", "単価", "必要数", "金額"]
+  ];
+  const startRow = head.length + 1;                 // データ開始行（1始まり）
+  const rows = base.map((b, i) => [i + 1, b.name, b.price, b.qty, { f: `C${startRow+i}*D${startRow+i}` }]);
+  const endRow = startRow + base.length - 1;
+  const total = ["", "合計", "",
+    { f: `SUM(D${startRow}:D${endRow})` },
+    { f: `SUM(E${startRow}:E${endRow})` }];
+
+  const ws = XLSX.utils.aoa_to_sheet([...head, ...rows, total]);
+  ws["!cols"] = [{wch:5},{wch:26},{wch:9},{wch:9},{wch:12}];
+  // 金額の表示形式
+  for(let r = startRow; r <= endRow + 1; r++){
+    ["C","E"].forEach(col => {
+      const cell = ws[col + r];
+      if(cell) cell.z = '#,##0';
+    });
+  }
+
+  /* --- シート2：注文一覧 --- */
+  const list = [["注文番号","お名前","電話番号","点数","金額","明細","支払","受取","状況","受付日時"]];
+  o.rows.forEach(r => list.push([
+    r.no, r.name, r.tel, r.count, r.total, r.detail,
+    r.paid ? "支払済" : "未払",
+    r.received ? "受取済" : "未受取",
+    r.status || "確定", r.at
+  ]));
+  const ws2 = XLSX.utils.aoa_to_sheet(list);
+  ws2["!cols"] = [{wch:11},{wch:16},{wch:14},{wch:6},{wch:10},{wch:46},{wch:8},{wch:8},{wch:10},{wch:12}];
+  ws2["!autofilter"] = { ref: `A1:J${list.length}` };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws,  "発注書");
+  XLSX.utils.book_append_sheet(wb, ws2, "注文一覧");
+
+  const fn = `ACE-EXPO_発注書_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}.xlsx`;
+  XLSX.writeFile(wb, fn);
+  toast("発注書を出力しました");
 }
 
 /* ---------- 部品 ---------- */
@@ -468,35 +532,18 @@ function switchTab(which){
 });
 document.getElementById("reload").onclick = refresh;
 
-/* ---------- 入口 ---------- */
-async function enter(){
-  const err = document.getElementById("gate-err");
-  KEY = document.getElementById("key").value.trim();
-  if(!KEY && GAS_URL){ err.hidden = false; err.textContent = "合言葉を入力してください。"; return; }
-  err.hidden = true;
+/* ---------- 起動 ---------- */
+async function start(){
   try{
     await load();
-    try{ localStorage.setItem("aceexpo_key", KEY); }catch(e){}
-    document.getElementById("gate").hidden = true;
-    document.getElementById("app").hidden = false;
     renderAll();
   }catch(e){
-    err.hidden = false;
-    err.textContent = e.message || "読み込みに失敗しました。";
+    document.querySelector("main.wrap").innerHTML =
+      `<div class="sec"><p class="empty">読み込みに失敗しました。<br>${e.message || ""}<br>
+       「更新」ボタンを押すか、ページを再読み込みしてください。</p></div>`;
   }
 }
-document.getElementById("enter").onclick = enter;
-document.getElementById("key").addEventListener("keydown", e => { if(e.key === "Enter") enter(); });
-
-// 前回の合言葉が残っていれば自動で開く
-(function(){
-  let saved = "";
-  try{ saved = localStorage.getItem("aceexpo_key") || ""; }catch(e){}
-  if(saved || !GAS_URL){
-    document.getElementById("key").value = saved;
-    enter();
-  }
-})();
+start();
 </script>
 </body>
 </html>
