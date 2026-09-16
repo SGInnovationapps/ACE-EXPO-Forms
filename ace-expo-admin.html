@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ACE EXPO｜管理ページ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Roboto+Mono:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --chalk:#F2F3EF; --paper:#FFFFFF; --ink:#131A2B;
+    --mat:#1C2A4E; --score:#FFB627; --line:#06C755;
+    --muted:#7C8598; --hair:#E2E3DE; --sold:#B4462F; --ok:#1F7A4D;
+    --display:"Oswald",sans-serif;
+    --jp:"Zen Kaku Gothic New",sans-serif;
+    --mono:"Roboto Mono",monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{background:var(--chalk);color:var(--ink);font-family:var(--jp);line-height:1.7;
+    -webkit-font-smoothing:antialiased;padding-bottom:60px}
+  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+  :focus-visible{outline:3px solid var(--mat);outline-offset:2px}
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
+
+  /* header */
+  .top{position:sticky;top:0;z-index:30;background:var(--mat);color:#fff}
+  .top-in{max-width:760px;margin:0 auto;padding:13px 20px;display:flex;
+    align-items:center;justify-content:space-between;gap:14px}
+  .mark{font-family:var(--display);font-weight:700;font-size:20px;letter-spacing:.06em;line-height:1.15}
+  .mark span{display:block;font-family:var(--jp);font-size:10px;font-weight:500;
+    letter-spacing:.16em;color:#8FA0C4;margin-top:3px}
+  .reload{background:var(--score);color:var(--ink);font-weight:900;font-size:12.5px;
+    padding:9px 14px;border-radius:999px;flex:none}
+  .reload[disabled]{opacity:.55}
+  .tabs{background:var(--mat);border-top:1px solid rgba(255,255,255,.12)}
+  .tabs-in{max-width:760px;margin:0 auto;padding:0 20px;display:flex;gap:22px}
+  .tab{padding:11px 0 9px;font-size:13px;font-weight:700;color:#8FA0C4;
+    border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab[aria-selected="true"]{color:#fff;border-bottom-color:var(--score)}
+  .stamp{font-size:10.5px;color:#8FA0C4;text-align:right;padding:6px 20px 0;max-width:760px;margin:0 auto}
+
+  /* login */
+  .gate{max-width:380px;margin:60px auto;padding:0 20px;text-align:center}
+  .gate h1{font-family:var(--display);font-size:24px;letter-spacing:.08em;margin-bottom:6px}
+  .gate p{font-size:12.5px;color:var(--muted);margin-bottom:22px}
+  .gate input{width:100%;padding:14px;border:1px solid var(--hair);border-radius:11px;
+    background:var(--paper);font-size:16px;font-family:var(--jp);text-align:center}
+  .gate button{width:100%;margin-top:12px;padding:15px;border-radius:12px;
+    background:var(--mat);color:#fff;font-weight:900;font-size:15px}
+  .gate .err{margin-top:14px;font-size:12.5px;color:var(--sold);font-weight:700}
+
+  /* cards */
+  .sec{margin-top:26px}
+  .sec-head{display:flex;align-items:center;gap:11px;padding-bottom:9px;border-bottom:2px solid var(--ink)}
+  .chip{width:13px;height:13px;background:var(--score);flex:none;border-radius:2px}
+  .sec-head h2{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.14em}
+  .sec-head small{font-size:11.5px;color:var(--muted);font-weight:500}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px}
+  .kpi{background:var(--paper);border:1px solid var(--hair);border-radius:12px;padding:14px 15px}
+  .kpi .l{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.04em}
+  .kpi .v{font-family:var(--mono);font-weight:700;font-size:25px;line-height:1.3;
+    font-variant-numeric:tabular-nums;margin-top:3px}
+  .kpi .s{font-size:11px;color:var(--muted)}
+  .kpi.alert{border-color:var(--sold);background:#FDECE8}
+  .kpi.alert .v,.kpi.alert .l{color:var(--sold)}
+
+  .slotcard{background:var(--paper);border:1px solid var(--hair);border-radius:13px;
+    padding:16px;margin-top:12px}
+  .slotcard .row1{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+  .slotcard h3{font-size:16px;font-weight:900}
+  .slotcard .time{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px}
+  .slotcard .nums{font-family:var(--mono);font-weight:700;text-align:right;flex:none}
+  .slotcard .nums b{font-size:22px}
+  .slotcard .nums span{font-size:11px;color:var(--muted);display:block}
+  .gauge{height:9px;border-radius:99px;background:#E7E8E3;margin-top:12px;overflow:hidden}
+  .gauge i{display:block;height:100%;background:var(--mat);border-radius:99px}
+  .gauge.full i{background:var(--sold)}
+  .ages{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .age{font-size:11.5px;background:var(--chalk);border-radius:7px;padding:5px 9px;font-weight:700}
+  .age b{font-family:var(--mono);margin-left:4px}
+
+  /* table */
+  .tablewrap{margin-top:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    border:1px solid var(--hair);border-radius:12px;background:var(--paper)}
+  table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+  th{background:var(--mat);color:#fff;font-size:11px;font-weight:700;letter-spacing:.04em;
+    padding:9px 11px;text-align:left;position:sticky;top:0}
+  td{padding:10px 11px;border-top:1px solid var(--hair);vertical-align:middle}
+  td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+  td.no{font-family:var(--mono);font-weight:700}
+  tr.off{opacity:.45}
+  tr.off td.no{text-decoration:line-through}
+  .wrapcell{white-space:normal;min-width:190px;font-size:12px;color:#39415A}
+
+  .pill{font-size:11px;font-weight:700;border-radius:6px;padding:3px 7px;border:1px solid currentColor}
+  .pill.no{color:var(--sold)}
+  .pill.yes{color:var(--ok)}
+  .mini{font-size:11.5px;font-weight:700;border:1px solid var(--mat);border-radius:8px;
+    padding:6px 10px;background:var(--paper);white-space:nowrap}
+  .mini.warn{border-color:var(--sold);color:var(--sold)}
+  .mini[disabled]{opacity:.45}
+
+  .search{width:100%;margin-top:14px;padding:12px 14px;border:1px solid var(--hair);
+    border-radius:11px;background:var(--paper);font-size:16px;font-family:var(--jp)}
+  .empty{padding:26px;text-align:center;color:var(--muted);font-size:12.5px}
+
+  /* settings */
+  .setrow{background:var(--paper);border:1px solid var(--hair);border-radius:11px;
+    padding:13px 15px;margin-top:9px}
+  .setrow dt{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.04em}
+  .setrow dd{font-size:14px;margin-top:3px;word-break:break-word}
+  .hint{margin-top:16px;font-size:12px;color:#4C5468;background:#FFF6E2;border-radius:10px;padding:12px 14px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(140%);
+    background:var(--ink);color:#fff;font-size:13px;font-weight:700;padding:12px 20px;
+    border-radius:999px;z-index:80;transition:transform .25s;white-space:nowrap}
+  .toast.on{transform:translateX(-50%) translateY(0)}
+  .toast.bad{background:var(--sold)}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+  @media print{
+    .top,.tabs,.search,.mini,.reload{display:none!important}
+    body{background:#fff;padding:0}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== 合言葉 ===== -->
+<div class="gate" id="gate">
+  <h1>ACE EXPO</h1>
+  <p>管理ページ　合言葉を入力してください</p>
+  <input id="key" type="password" placeholder="合言葉" autocomplete="current-password">
+  <button id="enter">開く</button>
+  <p class="err" id="gate-err" hidden></p>
+</div>
+
+<!-- ===== 本体 ===== -->
+<div id="app" hidden>
+  <header class="top">
+    <div class="top-in">
+      <div class="mark" id="mark">ACE EXPO<span id="mark-sub">管理ページ</span></div>
+      <button class="reload" id="reload">更新</button>
+    </div>
+    <div class="tabs">
+      <div class="tabs-in" role="tablist">
+        <button class="tab" id="t-visit" role="tab" aria-selected="true">来場予約</button>
+        <button class="tab" id="t-order" role="tab" aria-selected="false">ふわこっぺ</button>
+        <button class="tab" id="t-config" role="tab" aria-selected="false">設定</button>
+      </div>
+    </div>
+    <p class="stamp" id="stamp"></p>
+  </header>
+
+  <main class="wrap">
+    <div id="p-visit"></div>
+    <div id="p-order" hidden></div>
+    <div id="p-config" hidden></div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================================
+   ACE EXPO 管理ページ
+   GAS_URL は申込ページと同じ /exec URL を貼ってください。
+   合言葉はスプレッドシートの「設定」シート adminKey で変更します。
+   ========================================================================= */
+const GAS_URL = "";   // ← GASの /exec URL を貼る
+
+let KEY = "";
+let DATA = null;
+
+const yen = n => "¥" + Number(n || 0).toLocaleString("ja-JP");
+const esc = s => String(s == null ? "" : s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+/* ---------- デモ用のサンプル（GAS未接続のとき） ---------- */
+const DEMO = {
+  config:{ eventEn:"ACE EXPO", eventName:"エース体操クラブ",
+    eventDate:"2026年11月15日(日)", venue:"エース体操クラブ本校", lineId:"@ace-gym",
+    visitLead:"来場には事前予約が必要です。時間帯を選んで、電子チケットを受け取ってください。",
+    orderLead:"ふわこっぺの事前注文です。エース体操クラブ本校１階受付で事前清算となります。クラブ開館時間帯にお声がけください。当日は、ブースで注文番号を伝えて商品をお受け取りください。",
+    ticketNote:"当日は受付でこの画面をご提示ください。",
+    orderNote:"お支払いは本校１階受付にて事前清算です。当日はブースで注文番号をお伝えください。" },
+  visit:{
+    slots:[
+      {id:"am",label:"午前の部",time:"10:00 - 12:30",capacity:80,left:46,groups:9,total:34,
+       ages:{"大人":12,"高校生":2,"中学生":4,"小学生":11,"幼稚園以下":5}},
+      {id:"pm",label:"午後の部",time:"13:30 - 16:00",capacity:80,left:3,groups:21,total:77,
+       ages:{"大人":28,"高校生":4,"中学生":9,"小学生":26,"幼稚園以下":10}}
+    ],
+    ageKeys:["大人","高校生","中学生","小学生","幼稚園以下"],
+    ageTotals:{"大人":40,"高校生":6,"中学生":13,"小学生":37,"幼稚園以下":15},
+    total:111, groups:30, cancelled:2,
+    rows:[
+      {no:"V-031",slot:"午後の部",name:"山田 太郎",total:4,ages:{"大人":2,"高校生":0,"中学生":0,"小学生":2,"幼稚園以下":0},memo:"",status:"確定",at:"11/2 09:12"},
+      {no:"V-030",slot:"午前の部",name:"佐藤 花子",total:3,ages:{"大人":1,"高校生":0,"中学生":1,"小学生":1,"幼稚園以下":0},memo:"ベビーカー利用",status:"確定",at:"11/1 21:40"},
+      {no:"V-029",slot:"午後の部",name:"鈴木 一郎",total:2,ages:{"大人":1,"高校生":0,"中学生":0,"小学生":0,"幼稚園以下":1},memo:"",status:"キャンセル",at:"11/1 18:03"}
+    ]
+  },
+  order:{
+    tally:[
+      {name:"たまごサラダ",price:280,qty:24,amount:6720},
+      {name:"生チョコ",price:360,qty:18,amount:6480},
+      {name:"ウインナー",price:300,qty:15,amount:4500},
+      {name:"あげこっぺ きな粉",price:180,qty:12,amount:2160},
+      {name:"ツナマヨ",price:300,qty:9,amount:2700}
+    ],
+    menu:[], count:14, itemCount:78, sales:23980,
+    paidCount:9, paidAmount:15200, unpaidCount:5, unpaidAmount:8780, notReceived:14,
+    rows:[
+      {no:"K-014",name:"山田 太郎",tel:"09012345678",count:6,total:1860,detail:"たまごサラダ×2 / 生チョコ×2 / ウインナー×2",memo:"",paid:false,received:false,at:"11/2 09:15"},
+      {no:"K-013",name:"佐藤 花子",tel:"",count:4,total:1240,detail:"ツナマヨ×2 / いちごジャム×2",memo:"受け取りは午後",paid:true,received:false,at:"11/1 22:02"},
+      {no:"K-012",name:"鈴木 一郎",tel:"",count:3,total:840,detail:"あげこっぺ きな粉×2 / ポテトサラダ×1",memo:"",paid:true,received:true,at:"11/1 17:33"}
+    ]
+  },
+  updatedAt:"（サンプル表示）"
+};
+
+/* ---------- 通信 ---------- */
+async function load(){
+  if(!GAS_URL){ DATA = DEMO; return true; }
+  const res = await fetch(`${GAS_URL}?mode=admin&key=${encodeURIComponent(KEY)}`, { cache:"no-store" });
+  const r = await res.json();
+  if(!r.ok) throw new Error(r.message || "読み込みに失敗しました");
+  DATA = r.data;
+  return true;
+}
+
+async function update(target, no, value){
+  if(!GAS_URL){ toast("デモ表示のため保存されません", true); return false; }
+  const res = await fetch(GAS_URL, {
+    method:"POST",
+    body: JSON.stringify({ type:"update", key:KEY, target, no, value })
+  });
+  const r = await res.json();
+  if(!r.ok){ toast(r.message || "更新できませんでした", true); return false; }
+  return true;
+}
+
+/* ---------- 画面 ---------- */
+function renderVisit(){
+  const v = DATA.visit;
+  const cap = v.slots.reduce((a,s) => a + s.capacity, 0);
+
+  const kpi = `
+    <div class="kpis">
+      <div class="kpi"><p class="l">予約人数</p><p class="v">${v.total}</p><p class="s">定員 ${cap} 名</p></div>
+      <div class="kpi"><p class="l">予約組数</p><p class="v">${v.groups}</p><p class="s">組</p></div>
+      <div class="kpi"><p class="l">空き</p><p class="v">${Math.max(0, cap - v.total)}</p><p class="s">名</p></div>
+      <div class="kpi"><p class="l">取消</p><p class="v">${v.cancelled}</p><p class="s">件</p></div>
+    </div>`;
+
+  const slots = v.slots.map(s => {
+    const used = s.capacity - s.left;
+    const pct = s.capacity ? Math.min(100, Math.round(used / s.capacity * 100)) : 0;
+    return `
+      <div class="slotcard">
+        <div class="row1">
+          <div><h3>${esc(s.label)}</h3><p class="time">${esc(s.time || "")}</p></div>
+          <div class="nums"><b>${used}</b><span>／${s.capacity}名　残り${s.left}</span></div>
+        </div>
+        <div class="gauge ${s.left <= 0 ? "full" : ""}"><i style="width:${pct}%"></i></div>
+        <div class="ages">
+          <span class="age">組数<b>${s.groups}</b></span>
+          ${v.ageKeys.map(k => `<span class="age">${k}<b>${s.ages[k] || 0}</b></span>`).join("")}
+        </div>
+      </div>`;
+  }).join("");
+
+  const ages = `
+    <div class="ages" style="margin-top:14px">
+      ${v.ageKeys.map(k => `<span class="age">${k}<b>${v.ageTotals[k] || 0}</b></span>`).join("")}
+    </div>`;
+
+  const rows = v.rows.map(r => `
+    <tr class="${r.status === "キャンセル" ? "off" : ""}" data-search="${esc(r.no + r.name + r.slot)}">
+      <td class="no">${esc(r.no)}</td>
+      <td>${esc(r.name)}</td>
+      <td>${esc(r.slot)}</td>
+      <td class="num">${r.total}</td>
+      <td>${v.ageKeys.map(k => r.ages[k] ? `${k.slice(0,1)}${r.ages[k]}` : "").filter(Boolean).join(" ")}</td>
+      <td class="wrapcell">${esc(r.memo)}</td>
+      <td>${r.at}</td>
+      <td><button class="mini ${r.status === "キャンセル" ? "" : "warn"}"
+            data-act="visit" data-no="${esc(r.no)}"
+            data-val="${r.status === "キャンセル" ? "確定" : "キャンセル"}">
+            ${r.status === "キャンセル" ? "戻す" : "取消"}</button></td>
+    </tr>`).join("");
+
+  document.getElementById("p-visit").innerHTML = `
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>SUMMARY</h2><small>来場予約の集計</small></div>
+      ${kpi}${ages}
+    </section>
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>TIME</h2><small>時間帯ごと</small></div>
+      ${slots || '<p class="empty">時間帯が設定されていません。</p>'}
+    </section>
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>LIST</h2><small>予約一覧</small></div>
+      <input class="search" id="vsearch" type="search" placeholder="予約番号・お名前で絞り込む">
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>予約番号</th><th>代表者</th><th>時間帯</th><th>人数</th><th>内訳</th><th>連絡事項</th><th>受付</th><th></th></tr></thead>
+          <tbody id="vbody">${rows}</tbody>
+        </table>
+      </div>
+      ${v.rows.length ? "" : '<p class="empty">まだ予約はありません。</p>'}
+    </section>`;
+
+  bindSearch("vsearch", "vbody");
+  bindActions();
+}
+
+function renderOrder(){
+  const o = DATA.order;
+
+  const kpi = `
+    <div class="kpis">
+      <div class="kpi"><p class="l">注文件数</p><p class="v">${o.count}</p><p class="s">件 ／ ${o.itemCount}点</p></div>
+      <div class="kpi"><p class="l">売上（予定）</p><p class="v" style="font-size:21px">${yen(o.sales)}</p><p class="s">全注文の合計</p></div>
+      <div class="kpi"><p class="l">清算済</p><p class="v">${o.paidCount}</p><p class="s">${yen(o.paidAmount)}</p></div>
+      <div class="kpi ${o.unpaidCount ? "alert" : ""}"><p class="l">未清算</p><p class="v">${o.unpaidCount}</p><p class="s">${yen(o.unpaidAmount)}</p></div>
+      <div class="kpi"><p class="l">未受取</p><p class="v">${o.notReceived}</p><p class="s">件</p></div>
+    </div>`;
+
+  const tally = o.tally.length ? `
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>メニュー</th><th>個数</th><th>単価</th><th>金額</th></tr></thead>
+        <tbody>
+          ${o.tally.map(t => `
+            <tr><td>${esc(t.name)}</td><td class="num">${t.qty}</td>
+                <td class="num">${t.price ? yen(t.price) : "―"}</td>
+                <td class="num">${t.amount ? yen(t.amount) : "―"}</td></tr>`).join("")}
+          <tr><td style="font-weight:900">合計</td>
+              <td class="num" style="font-weight:900">${o.itemCount}</td><td></td>
+              <td class="num" style="font-weight:900">${yen(o.sales)}</td></tr>
+        </tbody>
+      </table>
+    </div>` : '<p class="empty">まだ注文はありません。</p>';
+
+  const rows = o.rows.map(r => `
+    <tr data-search="${esc(r.no + r.name + r.tel)}">
+      <td class="no">${esc(r.no)}</td>
+      <td>${esc(r.name)}</td>
+      <td class="num">${r.count}</td>
+      <td class="num">${yen(r.total)}</td>
+      <td class="wrapcell">${esc(r.detail)}</td>
+      <td><span class="pill ${r.paid ? "yes" : "no"}">${r.paid ? "清算済" : "未清算"}</span></td>
+      <td><button class="mini ${r.paid ? "" : "warn"}" data-act="pay" data-no="${esc(r.no)}"
+            data-val="${r.paid ? "未払" : "支払済"}">${r.paid ? "未清算に戻す" : "清算済にする"}</button></td>
+      <td><button class="mini" data-act="receive" data-no="${esc(r.no)}"
+            data-val="${r.received ? "未受取" : "受取済"}">${r.received ? "受取を戻す" : "受取済にする"}</button></td>
+      <td>${r.at}</td>
+    </tr>`).join("");
+
+  document.getElementById("p-order").innerHTML = `
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>SUMMARY</h2><small>注文の集計</small></div>
+      ${kpi}
+    </section>
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>ITEMS</h2><small>メニュー別の合計（仕込み数）</small></div>
+      ${tally}
+    </section>
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>LIST</h2><small>注文一覧</small></div>
+      <input class="search" id="osearch" type="search" placeholder="注文番号・お名前で絞り込む">
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>注文番号</th><th>お名前</th><th>点数</th><th>金額</th><th>明細</th><th>清算</th><th></th><th></th><th>受付</th></tr></thead>
+          <tbody id="obody">${rows}</tbody>
+        </table>
+      </div>
+      ${o.rows.length ? "" : '<p class="empty">まだ注文はありません。</p>'}
+      <p class="hint">受付での流れ：注文番号で絞り込む →　金額を確認 →　「清算済にする」を押す。商品を渡したら「受取済にする」。</p>
+    </section>`;
+
+  bindSearch("osearch", "obody");
+  bindActions();
+}
+
+function renderConfig(){
+  const c = DATA.config;
+  const rows = [
+    ["イベント名（英字）", c.eventEn],
+    ["主催", c.eventName],
+    ["開催日", c.eventDate],
+    ["会場", c.venue],
+    ["公式LINE ID", c.lineId],
+    ["来場予約タブの説明文", c.visitLead],
+    ["注文タブの説明文", c.orderLead],
+    ["チケットの注意書き", c.ticketNote],
+    ["注文の支払い案内", c.orderNote]
+  ];
+  document.getElementById("p-config").innerHTML = `
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>CONFIG</h2><small>現在の設定</small></div>
+      ${rows.map(r => `<dl class="setrow"><dt>${esc(r[0])}</dt><dd>${esc(r[1]) || "<span style='color:var(--muted)'>未設定</span>"}</dd></dl>`).join("")}
+      <p class="hint">これらはスプレッドシートの「設定」シートで変更します。変更後は、スプレッドシート上部のメニュー「ACE EXPO → 変更をすぐ反映する」を押すと、申込ページにすぐ反映されます。時間帯・定員は「時間帯」シート、メニューは「メニュー」シートです。</p>
+    </section>`;
+}
+
+/* ---------- 部品 ---------- */
+function bindSearch(inputId, bodyId){
+  const inp = document.getElementById(inputId);
+  if(!inp) return;
+  inp.oninput = () => {
+    const q = inp.value.trim().toLowerCase();
+    document.getElementById(bodyId).querySelectorAll("tr").forEach(tr => {
+      tr.style.display = !q || (tr.dataset.search || "").toLowerCase().includes(q) ? "" : "none";
+    });
+  };
+}
+
+function bindActions(){
+  document.querySelectorAll("button[data-act]").forEach(b => {
+    b.onclick = async () => {
+      const label = b.textContent;
+      b.disabled = true; b.textContent = "更新中…";
+      const ok = await update(b.dataset.act, b.dataset.no, b.dataset.val);
+      if(ok){ toast("更新しました"); await refresh(); }
+      else { b.disabled = false; b.textContent = label; }
+    };
+  });
+}
+
+let toastTimer = null;
+function toast(msg, bad){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.toggle("bad", !!bad);
+  t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("on"), 2200);
+}
+
+function renderAll(){
+  document.getElementById("mark").firstChild.nodeValue = DATA.config.eventEn || "ACE EXPO";
+  document.getElementById("mark-sub").textContent = "管理ページ";
+  document.getElementById("stamp").textContent = "最終更新 " + (DATA.updatedAt || "");
+  renderVisit(); renderOrder(); renderConfig();
+}
+
+async function refresh(){
+  const btn = document.getElementById("reload");
+  btn.disabled = true; btn.textContent = "更新中…";
+  try{ await load(); renderAll(); }
+  catch(e){ toast(e.message || "読み込みに失敗しました", true); }
+  btn.disabled = false; btn.textContent = "更新";
+}
+
+function switchTab(which){
+  ["visit","order","config"].forEach(k => {
+    document.getElementById("t-" + k).setAttribute("aria-selected", k === which);
+    document.getElementById("p-" + k).hidden = k !== which;
+  });
+  window.scrollTo(0, 0);
+}
+["visit","order","config"].forEach(k => {
+  document.getElementById("t-" + k).onclick = () => switchTab(k);
+});
+document.getElementById("reload").onclick = refresh;
+
+/* ---------- 入口 ---------- */
+async function enter(){
+  const err = document.getElementById("gate-err");
+  KEY = document.getElementById("key").value.trim();
+  if(!KEY && GAS_URL){ err.hidden = false; err.textContent = "合言葉を入力してください。"; return; }
+  err.hidden = true;
+  try{
+    await load();
+    try{ localStorage.setItem("aceexpo_key", KEY); }catch(e){}
+    document.getElementById("gate").hidden = true;
+    document.getElementById("app").hidden = false;
+    renderAll();
+  }catch(e){
+    err.hidden = false;
+    err.textContent = e.message || "読み込みに失敗しました。";
+  }
+}
+document.getElementById("enter").onclick = enter;
+document.getElementById("key").addEventListener("keydown", e => { if(e.key === "Enter") enter(); });
+
+// 前回の合言葉が残っていれば自動で開く
+(function(){
+  let saved = "";
+  try{ saved = localStorage.getItem("aceexpo_key") || ""; }catch(e){}
+  if(saved || !GAS_URL){
+    document.getElementById("key").value = saved;
+    enter();
+  }
+})();
+</script>
+</body>
+</html>
