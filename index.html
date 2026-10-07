@@ -400,6 +400,12 @@ const AGES = [
 
 const yen = n => "¥" + n.toLocaleString("ja-JP");
 
+/* 再送時の二重登録を防ぐID。確認画面を開いた時点で1回だけ発行し、再送でも同じIDを使う */
+let visitReqId = null, orderReqId = null;
+const newReqId = () => (window.crypto && crypto.randomUUID)
+  ? crypto.randomUUID()
+  : Date.now() + "-" + Math.random().toString(36).slice(2);
+
 /* ============================ 来場予約 ============================ */
 let slotId = null;
 const people = { adult:0, high:0, junior:0, elem:0, kids:0 };
@@ -452,6 +458,7 @@ function startGateTimer(){
 
     if(due && !gateChecking){
       gateChecking = true;
+      await new Promise(ok => setTimeout(ok, Math.random() * 3000));   // 全端末が同時にアクセスしないよう0〜3秒ずらす
       await refreshConfig();          // サーバーに最新の状態を聞く
       applySettings();
       renderSlots(); renderMenu(); renderBar();
@@ -567,6 +574,7 @@ function renderCounters(){
 }
 
 function openVisitSheet(){
+  visitReqId = newReqId();
   const s = currentSlot(); if(!s) return;
   document.getElementById("vrecap").innerHTML = `
     <li><span>時間帯</span><span>${s.label}</span></li>
@@ -582,9 +590,10 @@ function openVisitSheet(){
 
 /* =========================================================================
    GASへの送信（タイムアウト＋自動リトライ）
-   モバイル回線では一時的に失敗することがあるため、2回まで自動で試します。
+   モバイル回線では一時的に失敗することがあるため、3回まで自動で試します。
+   reqId を付けて送るので、再送しても二重登録にはなりません。
    ========================================================================= */
-async function postGAS(payload, { timeout = 20000, tries = 2 } = {}){
+async function postGAS(payload, { timeout = 30000, tries = 3 } = {}){
   let lastErr = null;
   for(let i = 0; i < tries; i++){
     const ac = new AbortController();
@@ -598,11 +607,16 @@ async function postGAS(payload, { timeout = 20000, tries = 2 } = {}){
       });
       clearTimeout(timer);
       if(!res.ok) throw new Error("HTTP " + res.status);
-      return await res.json();
+      const r = await res.json();
+      if(r && r.error === "busy" && i < tries - 1){            // 混雑時は少し待って自動で再送
+        await new Promise(ok => setTimeout(ok, 1500 + Math.random() * 1500));
+        continue;
+      }
+      return r;
     }catch(err){
       clearTimeout(timer);
       lastErr = err;
-      if(i < tries - 1) await new Promise(r => setTimeout(r, 1200));   // 少し待って再試行
+      if(i < tries - 1) await new Promise(ok => setTimeout(ok, 1200 + Math.random() * 1200));
     }
   }
   throw lastErr || new Error("network");
@@ -659,7 +673,7 @@ async function submitVisit(e){
     btn.setAttribute("aria-disabled", "true");
     try{
       const r = await postGAS({
-        type:"visit", slotId:s.id, name:name,
+        type:"visit", reqId:visitReqId, slotId:s.id, name:name,
         people:people, memo:document.getElementById("v-memo").value.trim()
       });
       if(!r.ok){
@@ -744,6 +758,7 @@ function renderBar(){
 }
 
 function openOrderSheet(){
+  orderReqId = newReqId();
   document.getElementById("orecap").innerHTML = orderLines()
     .map(l => `<li><span>${l.it.name} × ${l.qty}</span><span>${yen(l.sub)}</span></li>`).join("");
   document.getElementById("orecap-count").textContent = `${orderCount()}点`;
@@ -791,7 +806,7 @@ async function submitOrder(e){
     btn.setAttribute("aria-disabled", "true");
     try{
       const r = await postGAS({
-        type:"order",
+        type:"order", reqId:orderReqId,
         name: document.getElementById("o-name").value.trim(),
         tel:  document.getElementById("o-tel").value.trim(),
         memo: document.getElementById("o-memo").value.trim(),
@@ -849,7 +864,7 @@ function applySettings(){
 async function refreshConfig(){
   if(!GAS_URL) return;
   try{
-    const res = await fetch(GAS_URL + "?fresh=1", { cache:"no-store" });
+    const res = await fetch(GAS_URL, { cache:"no-store" });
     const data = await res.json();
     if(data && Array.isArray(data.slots)){
       CONFIG = data;
