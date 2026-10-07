@@ -42,8 +42,6 @@
   .tab[aria-selected="true"]{color:#fff;border-bottom-color:var(--score)}
   .stamp{font-size:10.5px;color:#8FA0C4;text-align:right;padding:6px 20px 0;max-width:760px;margin:0 auto}
 
-  /* login */
-
   /* cards */
   .sec{margin-top:26px}
   .sec-head{display:flex;align-items:center;gap:11px;padding-bottom:9px;border-bottom:2px solid var(--ink)}
@@ -156,7 +154,8 @@
 /* =========================================================================
    ACE EXPO 管理ページ
    GAS_URL は申込ページと同じ /exec URL を貼ってください。
-   このページは合言葉なしで開けます。URLは管理者のみに共有してください。
+   GAS のスクリプトプロパティに ADMIN_KEY を設定すると、初回に管理キーを聞かれます。
+   （入力したキーはこの端末に保存されます。未設定なら従来どおりキーなしで開けます）
    ========================================================================= */
 const GAS_URL = "https://script.google.com/macros/s/AKfycbwwj-7s7ZtKnaPFG7IZnedg57mWKueImwus48gmqfoiNrc_CS8ou2AmHp-1r3Db_yT-3w/exec";   // ← GASの /exec URL を貼る
 
@@ -165,6 +164,10 @@ let DATA = null;
 const yen = n => "¥" + Number(n || 0).toLocaleString("ja-JP");
 const esc = s => String(s == null ? "" : s)
   .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+/* ---------- 管理キー ---------- */
+const KEY_STORE = "aceexpo_admin_key";
+const adminKey = () => { try{ return localStorage.getItem(KEY_STORE) || ""; }catch(e){ return ""; } };
 
 /* ---------- デモ用のサンプル（GAS未接続のとき） ---------- */
 const DEMO = {
@@ -211,8 +214,14 @@ const DEMO = {
 /* ---------- 通信 ---------- */
 async function load(){
   if(!GAS_URL){ DATA = DEMO; return true; }
-  const res = await fetch(`${GAS_URL}?mode=admin`, { cache:"no-store" });
+  const res = await fetch(`${GAS_URL}?mode=admin&key=${encodeURIComponent(adminKey())}`, { cache:"no-store" });
   const r = await res.json();
+  if(!r.ok && r.error === "auth"){
+    const k = prompt("管理キーを入力してください");
+    if(!k) throw new Error("管理キーが必要です");
+    try{ localStorage.setItem(KEY_STORE, k); }catch(e){}
+    return load();
+  }
   if(!r.ok) throw new Error(r.message || "読み込みに失敗しました");
   DATA = r.data;
   return true;
@@ -222,7 +231,7 @@ async function update(target, no, value){
   if(!GAS_URL){ toast("デモ表示のため保存されません", true); return false; }
   const res = await fetch(GAS_URL, {
     method:"POST",
-    body: JSON.stringify({ type:"update", target, no, value })
+    body: JSON.stringify({ type:"update", target, no, value, key: adminKey() })
   });
   const r = await res.json();
   if(!r.ok){ toast(r.message || "更新できませんでした", true); return false; }
