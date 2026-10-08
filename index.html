@@ -402,6 +402,7 @@ const yen = n => "¥" + n.toLocaleString("ja-JP");
 
 /* 再送時の二重登録を防ぐID。確認画面を開いた時点で1回だけ発行し、再送でも同じIDを使う */
 let visitReqId = null, orderReqId = null;
+let visitIssuedNo = null, orderIssuedNo = null;   // 発行済みの番号（LINEから戻った後の再オープン用）
 const newReqId = () => (window.crypto && crypto.randomUUID)
   ? crypto.randomUUID()
   : Date.now() + "-" + Math.random().toString(36).slice(2);
@@ -574,7 +575,7 @@ function renderCounters(){
 }
 
 function openVisitSheet(){
-  visitReqId = newReqId();
+  visitReqId = newReqId(); visitIssuedNo = null;
   const s = currentSlot(); if(!s) return;
   document.getElementById("vrecap").innerHTML = `
     <li><span>時間帯</span><span>${s.label}</span></li>
@@ -668,7 +669,9 @@ async function submitVisit(e){
   const s = currentSlot();
   let no = "V-" + String(Math.floor(Math.random() * 900) + 100);   // GAS未接続時の仮番号
 
-  if(GAS_URL){
+  if(GAS_URL && visitIssuedNo){
+    no = visitIssuedNo;                       // 発行済み：再登録せず、同じ番号でLINEだけ開き直す
+  }else if(GAS_URL){
     btn.textContent = "予約番号を発行しています…";
     btn.setAttribute("aria-disabled", "true");
     try{
@@ -685,6 +688,7 @@ async function submitVisit(e){
         return;
       }
       no = r.no;
+      visitIssuedNo = no;
     }catch(err){
       notice("vnotice", netMessage(err));
       btn.textContent = "もう一度送信する";
@@ -694,7 +698,12 @@ async function submitVisit(e){
   }
 
   const msg = buildVisitMessage(no);
-  location.href = `https://line.me/R/oaMessage/${encodeURIComponent(CONFIG.lineId)}/?${encodeURIComponent(msg)}`;
+  if(GAS_URL){                                // LINEから戻ったときに止まらないよう、ボタンを先に戻す
+    btn.textContent = "LINEをもう一度開く（予約番号 " + no + "）";
+    btn.setAttribute("aria-disabled", "false");
+    notice("vnotice", "予約番号 " + no + " を発行しました。LINEが開かない・送信し忘れた場合は、下のボタンからもう一度開けます（二重予約にはなりません）。");
+  }
+  location.href =`https://line.me/R/oaMessage/${encodeURIComponent(CONFIG.lineId)}/?${encodeURIComponent(msg)}`;
 }
 
 
@@ -758,7 +767,7 @@ function renderBar(){
 }
 
 function openOrderSheet(){
-  orderReqId = newReqId();
+  orderReqId = newReqId(); orderIssuedNo = null;
   document.getElementById("orecap").innerHTML = orderLines()
     .map(l => `<li><span>${l.it.name} × ${l.qty}</span><span>${yen(l.sub)}</span></li>`).join("");
   document.getElementById("orecap-count").textContent = `${orderCount()}点`;
@@ -801,7 +810,9 @@ async function submitOrder(e){
 
   let no = "K-" + String(Math.floor(Math.random() * 900) + 100);   // GAS未接続時の仮番号
 
-  if(GAS_URL){
+  if(GAS_URL && orderIssuedNo){
+    no = orderIssuedNo;                       // 発行済み：再登録せず、同じ番号でLINEだけ開き直す
+  }else if(GAS_URL){
     btn.textContent = "注文番号を発行しています…";
     btn.setAttribute("aria-disabled", "true");
     try{
@@ -820,6 +831,7 @@ async function submitOrder(e){
         return;
       }
       no = r.no;
+      orderIssuedNo = no;
     }catch(err){
       notice("onotice", netMessage(err));
       btn.textContent = "もう一度送信する";
@@ -829,7 +841,12 @@ async function submitOrder(e){
   }
 
   const msg = buildOrderMessage(no);
-  location.href = `https://line.me/R/oaMessage/${encodeURIComponent(CONFIG.lineId)}/?${encodeURIComponent(msg)}`;
+  if(GAS_URL){
+    btn.textContent = "LINEをもう一度開く（注文番号 " + no + "）";
+    btn.setAttribute("aria-disabled", "false");
+    notice("onotice", "注文番号 " + no + " を発行しました。LINEが開かない・送信し忘れた場合は、下のボタンからもう一度開けます（二重注文にはなりません）。");
+  }
+  location.href =`https://line.me/R/oaMessage/${encodeURIComponent(CONFIG.lineId)}/?${encodeURIComponent(msg)}`;
 }
 
 /* ============================ 共通 ============================ */
