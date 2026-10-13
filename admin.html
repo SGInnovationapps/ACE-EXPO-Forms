@@ -119,10 +119,53 @@
     .top,.tabs,.search,.mini,.reload{display:none!important}
     body{background:#fff;padding:0}
   }
+
+  /* ---- 処理中オーバーレイ（書き込み中は全操作をブロック） ---- */
+  .busy{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;
+    background:rgba(19,26,43,.62);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+    overscroll-behavior:contain;touch-action:none}
+  .busy.on{display:flex;animation:busyIn .2s .15s both}   /* 一瞬で終わる処理ではチラつかせない */
+  .busy-card{background:var(--paper);border-radius:16px;padding:26px 30px;min-width:220px;max-width:calc(100vw - 48px);
+    text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.28)}
+  .busy-spin{width:42px;height:42px;margin:0 auto 14px;border-radius:50%;
+    border:4px solid var(--hair);border-top-color:var(--score);animation:busySpin .8s linear infinite}
+  .busy-msg{font-size:15px;font-weight:900;color:var(--ink)}
+  .busy-sub{font-size:12px;color:var(--muted);margin-top:4px}
+  @keyframes busySpin{to{transform:rotate(360deg)}}
+  @keyframes busyIn{from{opacity:0}to{opacity:1}}
+  @media (prefers-reduced-motion:reduce){.busy-spin{animation-duration:2.4s}.busy.on{animation:none}}
+
+  /* ---- 読み込み失敗画面（サンプルは表示しない） ---- */
+  .loaderr{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;
+    background:var(--chalk);padding:24px}
+  .loaderr.on{display:flex}
+  .loaderr-card{background:var(--paper);border:1px solid var(--hair);border-radius:16px;padding:28px 24px;
+    max-width:380px;width:100%;text-align:center}
+  .loaderr h2{font-size:17px;font-weight:900;color:var(--ink)}
+  .loaderr button{margin-top:18px;width:100%;min-height:50px;border:0;border-radius:12px;cursor:pointer;
+    background:var(--score);color:var(--ink);font-family:var(--jp);font-weight:900;font-size:16px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
+
+
+<!-- ===== 読み込み失敗画面 ===== -->
+<div class="loaderr" id="loaderr" role="alert">
+  <div class="loaderr-card">
+    <h2>読み込めませんでした</h2>
+    <button type="button" id="loaderr-retry">更新</button>
+  </div>
+</div>
+
+<!-- ===== 処理中オーバーレイ ===== -->
+<div class="busy" id="busy" role="alertdialog" aria-modal="true" aria-live="assertive" aria-labelledby="busy-msg">
+  <div class="busy-card">
+    <div class="busy-spin" aria-hidden="true"></div>
+    <p class="busy-msg" id="busy-msg">処理しています…</p>
+    <p class="busy-sub">そのままお待ちください</p>
+  </div>
+</div>
 
 <!-- ===== 本体 ===== -->
 <div id="app">
@@ -169,52 +212,21 @@ const esc = s => String(s == null ? "" : s)
 const KEY_STORE = "aceexpo_admin_key";
 const adminKey = () => { try{ return localStorage.getItem(KEY_STORE) || ""; }catch(e){ return ""; } };
 
-/* ---------- デモ用のサンプル（GAS未接続のとき） ---------- */
-const DEMO = {
-  config:{ eventEn:"ACE EXPO", eventName:"エース体操クラブ",
-    eventDate:"2026年11月15日(日)", venue:"エース体操クラブ本校", lineId:"@ace-gym",
-    visitLead:"来場には事前予約が必要です。時間帯と人数を選んで、公式LINEへ予約書を送信してください。",
-    orderLead:"ふわこっぺの事前注文です。エース体操クラブ本校１階受付で事前清算となります。クラブ開館時間帯にお声がけください。当日は、ブースで注文番号を伝えて商品をお受け取りください。",
-    orderNote:"お支払いは本校１階受付にて事前清算です。当日はブースで注文番号をお伝えください。" },
-  visit:{
-    slots:[
-      {id:"am",label:"午前の部",time:"10:00 - 12:30",capacity:80,left:46,groups:9,total:34,
-       ages:{"大人":12,"高校生":2,"中学生":4,"小学生":11,"幼稚園以下":5}},
-      {id:"pm",label:"午後の部",time:"13:30 - 16:00",capacity:80,left:3,groups:21,total:77,
-       ages:{"大人":28,"高校生":4,"中学生":9,"小学生":26,"幼稚園以下":10}}
-    ],
-    ageKeys:["大人","高校生","中学生","小学生","幼稚園以下"],
-    ageTotals:{"大人":40,"高校生":6,"中学生":13,"小学生":37,"幼稚園以下":15},
-    total:111, groups:30, cancelled:2,
-    rows:[
-      {no:"V-031",slot:"午後の部",name:"山田 太郎",total:4,ages:{"大人":2,"高校生":0,"中学生":0,"小学生":2,"幼稚園以下":0},memo:"",status:"確定",at:"11/2 09:12"},
-      {no:"V-030",slot:"午前の部",name:"佐藤 花子",total:3,ages:{"大人":1,"高校生":0,"中学生":1,"小学生":1,"幼稚園以下":0},memo:"ベビーカー利用",status:"確定",at:"11/1 21:40"},
-      {no:"V-029",slot:"午後の部",name:"鈴木 一郎",total:2,ages:{"大人":1,"高校生":0,"中学生":0,"小学生":0,"幼稚園以下":1},memo:"",status:"キャンセル",at:"11/1 18:03"}
-    ]
-  },
-  order:{
-    tally:[
-      {name:"たまごサラダ",price:280,qty:24,amount:6720},
-      {name:"生チョコ",price:360,qty:18,amount:6480},
-      {name:"ウインナー",price:300,qty:15,amount:4500},
-      {name:"あげこっぺ きな粉",price:180,qty:12,amount:2160},
-      {name:"ツナマヨ",price:300,qty:9,amount:2700}
-    ],
-    menu:[{name:"たまごサラダ",price:280},{name:"ツナマヨ",price:300},{name:"ウインナー",price:300},{name:"生チョコ",price:360},{name:"あげこっぺ きな粉",price:180},{name:"ポテトサラダ",price:280}], count:14, allCount:15, cancelled:1, itemCount:78, sales:23980,
-    paidCount:9, paidAmount:15200, unpaidCount:5, unpaidAmount:8780, notReceived:14,
-    rows:[
-      {no:"K-014",name:"山田 太郎",tel:"09012345678",count:6,total:1860,detail:"たまごサラダ×2 / 生チョコ×2 / ウインナー×2",memo:"",paid:false,received:false,status:"確定",at:"11/2 09:15"},
-      {no:"K-013",name:"佐藤 花子",tel:"",count:4,total:1240,detail:"ツナマヨ×2 / いちごジャム×2",memo:"受け取りは午後",paid:true,received:false,status:"確定",at:"11/1 22:02"},
-      {no:"K-012",name:"鈴木 一郎",tel:"",count:3,total:840,detail:"あげこっぺ きな粉×2 / ポテトサラダ×1",memo:"",paid:true,received:true,status:"キャンセル",at:"11/1 17:33"}
-    ]
-  },
-  updatedAt:"（サンプル表示）"
-};
 
 /* ---------- 通信 ---------- */
+/** タイムアウト付きfetch（AbortSignalは使わない：プレビュー環境などで "could not be cloned" になるため） */
+function fetchT(url, opts, ms){
+  let timer;
+  const timeout = new Promise((_, ng) => {
+    timer = setTimeout(() => { const e = new Error("timeout"); e.name = "AbortError"; ng(e); }, ms);
+  });
+  return Promise.race([fetch(url, opts), timeout]).finally(() => clearTimeout(timer));
+}
+
 async function load(){
-  if(!GAS_URL){ DATA = DEMO; return true; }
-  const res = await fetch(`${GAS_URL}?mode=admin&key=${encodeURIComponent(adminKey())}`, { cache:"no-store" });
+  if(!GAS_URL) throw new Error("GAS_URL が設定されていません");
+  const res = await fetchT(`${GAS_URL}?mode=admin&key=${encodeURIComponent(adminKey())}`, { cache:"no-store" }, 20000);
+  if(!res.ok) throw new Error("HTTP " + res.status);
   const r = await res.json();
   if(!r.ok && r.error === "auth"){
     const k = prompt("管理キーを入力してください");
@@ -227,15 +239,36 @@ async function load(){
   return true;
 }
 
+
+/* ---------- 処理中オーバーレイ（書き込み中は操作を受け付けない） ---------- */
+let busyDepth = 0;
+const busyBlock = e => { e.preventDefault(); e.stopPropagation(); };
+function showBusy(msg){
+  if(++busyDepth > 1){ document.getElementById("busy-msg").textContent = msg || "処理しています…"; return; }
+  document.getElementById("busy-msg").textContent = msg || "処理しています…";
+  document.getElementById("busy").classList.add("on");
+  try{ if(document.activeElement) document.activeElement.blur(); }catch(e){}
+  ["keydown","keypress","keyup"].forEach(t => document.addEventListener(t, busyBlock, true));
+}
+function hideBusy(){
+  if(busyDepth === 0 || --busyDepth > 0) return;
+  document.getElementById("busy").classList.remove("on");
+  ["keydown","keypress","keyup"].forEach(t => document.removeEventListener(t, busyBlock, true));
+}
+window.addEventListener("pageshow", () => { busyDepth = 1; hideBusy(); });   // LINEから戻ったときに残らないように
+
 async function update(target, no, value){
-  if(!GAS_URL){ toast("デモ表示のため保存されません", true); return false; }
-  const res = await fetch(GAS_URL, {
-    method:"POST",
-    body: JSON.stringify({ type:"update", target, no, value, key: adminKey() })
-  });
-  const r = await res.json();
-  if(!r.ok){ toast(r.message || "更新できませんでした", true); return false; }
-  return true;
+  if(!GAS_URL){ toast("GAS_URL が設定されていません", true); return false; }
+  showBusy("保存しています…");
+  try{
+    const res = await fetchT(GAS_URL, {
+      method:"POST",
+      body: JSON.stringify({ type:"update", target, no, value, key: adminKey() })
+    }, 30000);
+    const r = await res.json();
+    if(!r.ok){ toast(r.message || "更新できませんでした", true); return false; }
+    return true;
+  }finally{ hideBusy(); }
 }
 
 /* ---------- 画面 ---------- */
@@ -524,8 +557,13 @@ function renderAll(){
 async function refresh(){
   const btn = document.getElementById("reload");
   btn.disabled = true; btn.textContent = "更新中…";
+  showBusy("更新しています…");
   try{ await load(); renderAll(); }
-  catch(e){ toast(e.message || "読み込みに失敗しました", true); }
+  catch(e){
+    toast(e.message || "読み込みに失敗しました", true);
+    if(DATA) document.getElementById("stamp").textContent = "⚠ 更新に失敗しました。表示は古い情報です（最終更新 " + (DATA.updatedAt || "") + "）";
+  }
+  finally{ hideBusy(); }
   btn.disabled = false; btn.textContent = "更新";
 }
 
@@ -543,15 +581,19 @@ document.getElementById("reload").onclick = refresh;
 
 /* ---------- 起動 ---------- */
 async function start(){
+  document.getElementById("loaderr").classList.remove("on");
+  showBusy("読み込んでいます…");
   try{
     await load();
     renderAll();
+    document.body.style.overflow = "";
   }catch(e){
-    document.querySelector("main.wrap").innerHTML =
-      `<div class="sec"><p class="empty">読み込みに失敗しました。<br>${e.message || ""}<br>
-       「更新」ボタンを押すか、ページを再読み込みしてください。</p></div>`;
-  }
+    console.warn("読み込み失敗", e);
+    document.getElementById("loaderr").classList.add("on");
+    document.body.style.overflow = "hidden";
+  }finally{ hideBusy(); }
 }
+document.getElementById("loaderr-retry").onclick = start;
 start();
 </script>
 </body>
