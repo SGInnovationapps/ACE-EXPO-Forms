@@ -188,9 +188,39 @@
   .credit{font-size:11px;color:var(--muted);text-align:center;letter-spacing:.04em}
 
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+  /* ---- 処理中オーバーレイ（書き込み中は全操作をブロック） ---- */
+  .busy{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;
+    background:rgba(19,26,43,.62);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+    overscroll-behavior:contain;touch-action:none}
+  .busy.on{display:flex;animation:busyIn .2s .15s both}   /* 一瞬で終わる処理ではチラつかせない */
+  .busy-card{background:var(--paper);border-radius:16px;padding:26px 30px;min-width:220px;max-width:calc(100vw - 48px);
+    text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.28)}
+  .busy-spin{width:42px;height:42px;margin:0 auto 14px;border-radius:50%;
+    border:4px solid var(--hair);border-top-color:var(--score);animation:busySpin .8s linear infinite}
+  .busy-msg{font-size:15px;font-weight:900;color:var(--ink)}
+  .busy-sub{font-size:12px;color:var(--muted);margin-top:4px}
+  @keyframes busySpin{to{transform:rotate(360deg)}}
+  @keyframes busyIn{from{opacity:0}to{opacity:1}}
+  @media (prefers-reduced-motion:reduce){.busy-spin{animation-duration:2.4s}.busy.on{animation:none}}
+
+  /* ---- 読み込み失敗（TIME / ORDER の下に表示） ---- */
+  .loaderr{padding:26px 0;text-align:center}
+  .loaderr p{font-size:15px;font-weight:900;color:var(--ink)}
+  .loaderr .primary{margin-top:14px}
 </style>
 </head>
 <body>
+
+
+<!-- ===== 処理中オーバーレイ ===== -->
+<div class="busy" id="busy" role="alertdialog" aria-modal="true" aria-live="assertive" aria-labelledby="busy-msg">
+  <div class="busy-card">
+    <div class="busy-spin" aria-hidden="true"></div>
+    <p class="busy-msg" id="busy-msg">処理しています…</p>
+    <p class="busy-sub">そのままお待ちください</p>
+  </div>
+</div>
 
 <header class="top">
   <div class="top-in">
@@ -254,7 +284,7 @@
   </div>
 
   <footer>
-    <p class="credit">ACE EXPO ／ PROTOTYPE</p>
+    <p class="credit">ACE NEXT Foms</p>
   </footer>
 </main>
 
@@ -345,50 +375,11 @@
 /* =========================================================================
    ACE EXPO 申し込みフォーム
    GAS_URL を設定すると、スプレッドシートの内容で動きます。
-   空欄のままでも FALLBACK_CONFIG のサンプルで一通り試せます。
+   読み込みに失敗したときはサンプルを出さず、「もう一度読み込む」画面を表示します。
    ========================================================================= */
 const GAS_URL = "https://script.google.com/macros/s/AKfycbwwj-7s7ZtKnaPFG7IZnedg57mWKueImwus48gmqfoiNrc_CS8ou2AmHp-1r3Db_yT-3w/exec";   // ← GASの /exec URL を貼る
 
-const FALLBACK_CONFIG = {
-  eventEn: "ACE EXPO",
-  eventName: "エース体操クラブ",
-  eventDate: "2026年11月15日(日)",
-  venue: "エース体操クラブ本校",
-  lineId: "@ace-gym",
-  visitLead: "来場には事前予約が必要です。時間帯と人数を選んで、公式LINEへ予約書を送信してください。",
-  orderLead: "ふわこっぺの事前注文です。エース体操クラブ本校１階受付で事前清算となります。クラブ開館時間帯にお声がけください。当日は、ブースで注文番号を伝えて商品をお受け取りください。",
-  orderNote: "お支払いは本校１階受付にて事前清算です。当日はブースで注文番号をお伝えください。",
-  visit: { state:"open", openAt:"", closeAt:"" },
-  order: { state:"open", openAt:"", closeAt:"" },
-  slots: [
-    { id:"am", label:"午前の部", time:"10:00 - 12:30", note:"", capacity:80, left:34, full:false, closed:false },
-    { id:"pm", label:"午後の部", time:"13:30 - 16:00", note:"", capacity:80, left:3,  full:false, closed:false }
-  ],
-  menu: [
-    { id:"m01", name:"たまごサラダ",         price:280, desc:"" },
-    { id:"m02", name:"ツナマヨ",             price:300, desc:"" },
-    { id:"m03", name:"ごぼうサラダ",         price:300, desc:"" },
-    { id:"m04", name:"かぼちゃサラダ",       price:300, desc:"" },
-    { id:"m05", name:"ポテトサラダ",         price:280, desc:"" },
-    { id:"m06", name:"めんたいポテト",       price:320, desc:"" },
-    { id:"m07", name:"えびアボカド",         price:390, desc:"" },
-    { id:"m08", name:"ウインナー",           price:300, desc:"" },
-    { id:"m09", name:"タルタル白身フライ",   price:360, desc:"" },
-    { id:"m10", name:"唐揚げチキン南蛮",     price:390, desc:"" },
-    { id:"m11", name:"マスカルポーネハニー", price:300, desc:"" },
-    { id:"m12", name:"コーヒーホイップ",     price:280, desc:"" },
-    { id:"m13", name:"ピーナッツクリーム",   price:280, desc:"" },
-    { id:"m14", name:"ティラミス",           price:300, desc:"" },
-    { id:"m15", name:"つぶあんバター",       price:300, desc:"" },
-    { id:"m16", name:"ホイップフルーツ",     price:340, desc:"" },
-    { id:"m17", name:"いちごジャム",         price:280, desc:"" },
-    { id:"m18", name:"生チョコ",             price:360, desc:"" },
-    { id:"m19", name:"あげこっぺ 砂糖",      price:180, desc:"" },
-    { id:"m20", name:"あげこっぺ きな粉",    price:180, desc:"" }
-  ]
-};
-
-let CONFIG = FALLBACK_CONFIG;
+let CONFIG = {};   // boot() で GAS から取得して入れる
 
 const AGES = [
   { key:"adult",  label:"大人",       note:"高校生以上の保護者の方" },
@@ -594,19 +585,49 @@ function openVisitSheet(){
    モバイル回線では一時的に失敗することがあるため、3回まで自動で試します。
    reqId を付けて送るので、再送しても二重登録にはなりません。
    ========================================================================= */
-async function postGAS(payload, { timeout = 30000, tries = 3 } = {}){
+
+/* ---------- 処理中オーバーレイ（書き込み中は操作を受け付けない） ---------- */
+let busyDepth = 0;
+const busyBlock = e => { e.preventDefault(); e.stopPropagation(); };
+function showBusy(msg){
+  if(++busyDepth > 1){ document.getElementById("busy-msg").textContent = msg || "処理しています…"; return; }
+  document.getElementById("busy-msg").textContent = msg || "処理しています…";
+  document.getElementById("busy").classList.add("on");
+  try{ if(document.activeElement) document.activeElement.blur(); }catch(e){}
+  ["keydown","keypress","keyup"].forEach(t => document.addEventListener(t, busyBlock, true));
+}
+function hideBusy(){
+  if(busyDepth === 0 || --busyDepth > 0) return;
+  document.getElementById("busy").classList.remove("on");
+  ["keydown","keypress","keyup"].forEach(t => document.removeEventListener(t, busyBlock, true));
+}
+window.addEventListener("pageshow", () => { busyDepth = 1; hideBusy(); });   // LINEから戻ったときに残らないように
+
+
+
+/** タイムアウト付きfetch（AbortSignalは使わない：プレビュー環境などで "could not be cloned" になるため） */
+function fetchT(url, opts, ms){
+  let timer;
+  const timeout = new Promise((_, ng) => {
+    timer = setTimeout(() => { const e = new Error("timeout"); e.name = "AbortError"; ng(e); }, ms);
+  });
+  return Promise.race([fetch(url, opts), timeout]).finally(() => clearTimeout(timer));
+}
+
+async function postGAS(payload, { timeout = 30000, tries = 3, label = "処理しています…" } = {}){
+  showBusy(label);
+  try{ return await postGAS_(payload, { timeout, tries }); }
+  finally{ hideBusy(); }
+}
+async function postGAS_(payload, { timeout, tries }){
   let lastErr = null;
   for(let i = 0; i < tries; i++){
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), timeout);
     try{
-      const res = await fetch(GAS_URL, {
+      const res = await fetchT(GAS_URL, {
         method: "POST",
         body: JSON.stringify(payload),
-        signal: ac.signal,
         redirect: "follow"
-      });
-      clearTimeout(timer);
+      }, timeout);
       if(!res.ok) throw new Error("HTTP " + res.status);
       const r = await res.json();
       if(r && r.error === "busy" && i < tries - 1){            // 混雑時は少し待って自動で再送
@@ -615,7 +636,6 @@ async function postGAS(payload, { timeout = 30000, tries = 3 } = {}){
       }
       return r;
     }catch(err){
-      clearTimeout(timer);
       lastErr = err;
       if(i < tries - 1) await new Promise(ok => setTimeout(ok, 1200 + Math.random() * 1200));
     }
@@ -678,7 +698,7 @@ async function submitVisit(e){
       const r = await postGAS({
         type:"visit", reqId:visitReqId, slotId:s.id, name:name,
         people:people, memo:document.getElementById("v-memo").value.trim()
-      });
+      }, { label:"予約番号を発行しています…" });
       if(!r.ok){
         notice("vnotice", r.message || "予約できませんでした。");
         btn.textContent = "予約を確定してLINEで送る";
@@ -823,7 +843,7 @@ async function submitOrder(e){
         memo: document.getElementById("o-memo").value.trim(),
         count: orderCount(), total: orderTotal(),
         items: orderLines().map(l => ({ id:l.it.id, name:l.it.name, qty:l.qty, sub:l.sub }))
-      });
+      }, { label:"注文番号を発行しています…" });
       if(!r.ok){
         notice("onotice", r.message || "注文できませんでした。");
         btn.textContent = "注文を確定してLINEで送る";
@@ -898,7 +918,7 @@ function switchTab(which){
   document.getElementById("panel-order").hidden = visit;
   window.scrollTo(0, 0);
   renderBar();
-  if(visit) refreshConfig().then(() => { renderSlots(); if(slotId) renderCounters(); });
+  if(visit && !loadFailed) refreshConfig().then(() => { renderSlots(); if(slotId) renderCounters(); });
 }
 
 /* ---------- events ---------- */
@@ -931,20 +951,51 @@ document.getElementById("ocopy").onclick = async () => {
 };
 
 /* ---------- init ---------- */
-async function boot(){
-  if(GAS_URL){
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 12000);
+/** 設定をGASから取得する。失敗したら例外を投げる（サンプルは使わない） */
+async function loadConfig(){
+  if(!GAS_URL) throw new Error("GAS_URL が設定されていません");
+  let lastErr = null;
+  for(let i = 0; i < 2; i++){
     try{
-      const res = await fetch(GAS_URL, { cache:"no-store", signal: ac.signal });
+      const res = await fetchT(GAS_URL, { cache:"no-store" }, 15000);
+      if(!res.ok) throw new Error("HTTP " + res.status);
       const data = await res.json();
-      if(data && Array.isArray(data.slots)){
-        CONFIG = data;
-        if(data.nowMs) clockOffset = data.nowMs - Date.now();
-      }
-    }catch(err){ console.warn("GAS読み込み失敗。サンプルで表示します。", err); }
-    clearTimeout(timer);
+      if(!data || !Array.isArray(data.slots)) throw new Error("設定の形式が正しくありません");
+      CONFIG = data;
+      if(data.nowMs) clockOffset = data.nowMs - Date.now();
+      return;
+    }catch(err){
+      lastErr = err;
+      if(i < 1) await new Promise(ok => setTimeout(ok, 1000));
+    }
   }
+  throw lastErr;
+}
+
+/** 読み込み失敗：サンプルは出さず、TIME / ORDER の下に「読み込めませんでした［更新］」を表示する */
+let loadFailed = false;
+function showLoadError(){
+  loadFailed = true;
+  const html = '<div class="loaderr" role="alert"><p>読み込めませんでした</p>' +
+               '<button type="button" class="primary loaderr-retry">更新</button></div>';
+  document.getElementById("slots").innerHTML = html;
+  document.getElementById("menu").innerHTML = html;
+  document.getElementById("people-sec").hidden = true;
+  document.querySelectorAll(".loaderr-retry").forEach(b => b.onclick = boot);
+}
+
+async function boot(){
+  showBusy("読み込んでいます…");
+  try{
+    await loadConfig();
+  }catch(err){
+    console.warn("GAS読み込み失敗", err);
+    hideBusy();
+    showLoadError();
+    return;
+  }
+  hideBusy();
+  loadFailed = false;
   applySettings();
   renderSlots();
   renderMenu();
