@@ -181,6 +181,7 @@
     border-radius:14px;background:var(--paper);font-size:13px;font-weight:700;text-align:center}
   .caution{margin-top:16px;font-size:12px;color:#4C5468;background:#FFF6E2;border-radius:10px;padding:12px 14px}
   .caution b{color:var(--sold)}
+  .caution.good{background:#E6F4EA;color:#1F5C3A}
   .bad{background:#FDECE8;color:var(--sold);font-weight:700}
 
 
@@ -718,10 +719,11 @@ async function submitVisit(e){
   }
 
   const msg = buildVisitMessage(no);
+  document.getElementById("vpreview").textContent = msg;      // プレビューにも発行済みの番号を出す
   if(GAS_URL){                                // LINEから戻ったときに止まらないよう、ボタンを先に戻す
     btn.textContent = "LINEをもう一度開く（予約番号 " + no + "）";
     btn.setAttribute("aria-disabled", "false");
-    notice("vnotice", "予約番号 " + no + " を発行しました。LINEが開かない・送信し忘れた場合は、下のボタンからもう一度開けます（二重予約にはなりません）。");
+    notice("vnotice", "予約番号 " + no + " を発行しました。LINEが開かない・送信し忘れた場合は、下のボタンからもう一度開けます（二重予約にはなりません）。", true);
   }
   location.href =`https://line.me/R/oaMessage/${encodeURIComponent(CONFIG.lineId)}/?${encodeURIComponent(msg)}`;
 }
@@ -861,10 +863,11 @@ async function submitOrder(e){
   }
 
   const msg = buildOrderMessage(no);
+  document.getElementById("opreview").textContent = msg;
   if(GAS_URL){
     btn.textContent = "LINEをもう一度開く（注文番号 " + no + "）";
     btn.setAttribute("aria-disabled", "false");
-    notice("onotice", "注文番号 " + no + " を発行しました。LINEが開かない・送信し忘れた場合は、下のボタンからもう一度開けます（二重注文にはなりません）。");
+    notice("onotice", "注文番号 " + no + " を発行しました。LINEが開かない・送信し忘れた場合は、下のボタンからもう一度開けます（二重注文にはなりません）。", true);
   }
   location.href =`https://line.me/R/oaMessage/${encodeURIComponent(CONFIG.lineId)}/?${encodeURIComponent(msg)}`;
 }
@@ -880,8 +883,8 @@ function closeSheet(id){
   s.classList.remove("on"); s.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
 }
-function notice(id, text){
-  document.getElementById(id).innerHTML = `<p class="caution bad" style="margin:0 0 14px">${text}</p>`;
+function notice(id, text, good){
+  document.getElementById(id).innerHTML = `<p class="caution ${good ? "good" : "bad"}" style="margin:0 0 14px">${text}</p>`;
 }
 
 function applySettings(){
