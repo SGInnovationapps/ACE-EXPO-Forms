@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ACE EXPO｜来場予約・ふわこっぺ注文</title>
+<meta name="description" content="ACE EXPO申込フォーム">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ACE EXPO">
+<meta property="og:title" content="ACE EXPO｜来場予約・ふわこっぺ注文">
+<meta property="og:description" content="ACE EXPO申込フォーム">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="ACE EXPO｜来場予約・ふわこっぺ注文">
+<meta name="twitter:description" content="ACE EXPO申込フォーム">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Roboto:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -218,8 +227,8 @@
 <div class="busy" id="busy" role="alertdialog" aria-modal="true" aria-live="assertive" aria-labelledby="busy-msg">
   <div class="busy-card">
     <div class="busy-spin" aria-hidden="true"></div>
-    <p class="busy-msg" id="busy-msg">処理しています…</p>
-    <p class="busy-sub">そのままお待ちください</p>
+    <p class="busy-msg" id="busy-msg"></p>
+    <p class="busy-sub" id="busy-sub"></p>
   </div>
 </div>
 
@@ -270,7 +279,7 @@
   <!-- ==================== ふわこっぺ注文 ==================== -->
   <div id="panel-order" role="tabpanel" hidden>
     <section class="hero">
-      <p class="eyebrow">ACE EXPO ／ FUWAKOPPE</p>
+      <p class="eyebrow">ACE EXPO ／ KOPPEPAN</p>
       <p class="lead" id="order-lead">ふわこっぺの事前注文です。エース体操クラブ本校１階受付で事前清算となります。クラブ開館時間帯にお声がけください。当日は、ブースで注文番号を伝えて商品をお受け取りください。</p>
       <figure class="menupic">
         <img src="menu.jpg" alt="ふわこっぺ メニュー一覧" loading="lazy" width="1200" height="900">
@@ -591,6 +600,7 @@ function openVisitSheet(){
 let busyDepth = 0;
 const busyBlock = e => { e.preventDefault(); e.stopPropagation(); };
 function showBusy(msg){
+  document.getElementById("busy-sub").textContent = "そのままお待ちください";
   if(++busyDepth > 1){ document.getElementById("busy-msg").textContent = msg || "処理しています…"; return; }
   document.getElementById("busy-msg").textContent = msg || "処理しています…";
   document.getElementById("busy").classList.add("on");
