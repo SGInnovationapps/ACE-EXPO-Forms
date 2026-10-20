@@ -57,6 +57,12 @@
   .kpi .v{font-family:var(--mono);font-weight:700;font-size:25px;line-height:1.3;
     font-variant-numeric:tabular-nums;margin-top:3px}
   .kpi .s{font-size:11px;color:var(--muted)}
+  .vsplit td.vn{font-weight:900}
+  .vsplit tr.fuwa td{background:#FFF7E3}
+  .vsplit tr.ace td{background:#EEF4FF}
+  .vtag{display:inline-block;margin-left:6px;padding:0 5px;border-radius:4px;background:#E6F0FF;color:#1C5BC4;font-size:10.5px;font-weight:700}
+  h3.subh{margin:18px 0 8px;font-size:13px;font-weight:900}
+  h3.subh.ace{color:#1C5BC4}
   .kpi.alert{border-color:var(--sold);background:#FDECE8}
   .kpi.alert .v,.kpi.alert .l{color:var(--sold)}
 
@@ -361,21 +367,51 @@ function renderOrder(){
       <div class="kpi"><p class="l">取消</p><p class="v">${o.cancelled || 0}</p><p class="s">件</p></div>
     </div>`;
 
-  const tally = o.tally.length ? `
+  /* 販売元別の精算（ふわこっぺ / エース体操クラブ） */
+  const sp = splitOf(o);
+  const vsplit = `
+    <div class="tablewrap" style="margin-top:14px">
+      <table class="vsplit">
+        <thead><tr><th>販売元</th><th>点数</th><th>売上（予定）</th><th>清算済</th><th>未清算</th></tr></thead>
+        <tbody>
+          <tr class="fuwa"><td class="vn">ふわこっぺ</td><td class="num">${sp.fuwa.items}</td>
+            <td class="num">${yen(sp.fuwa.sales)}</td><td class="num" style="font-weight:900">${yen(sp.fuwa.paid)}</td>
+            <td class="num">${yen(sp.fuwa.unpaid)}</td></tr>
+          <tr class="ace"><td class="vn">エース体操クラブ</td><td class="num">${sp.ace.items}</td>
+            <td class="num">${yen(sp.ace.sales)}</td><td class="num">${yen(sp.ace.paid)}</td>
+            <td class="num">${yen(sp.ace.unpaid)}</td></tr>
+          <tr><td class="vn">合計</td><td class="num">${o.itemCount}</td><td class="num">${yen(o.sales)}</td>
+            <td class="num">${yen(o.paidAmount)}</td><td class="num">${yen(o.unpaidAmount)}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">ふわこっぺへの入金額は「ふわこっぺ」行の金額です（清算済＝受付で受け取り済みの分、売上（予定）＝取消を除く全注文の分）。</p>`;
+
+  const tallyTable = (list, label) => {
+    const qty = list.reduce((a, t) => a + t.qty, 0), amt = list.reduce((a, t) => a + t.amount, 0);
+    return `
     <div class="tablewrap">
       <table>
         <thead><tr><th>メニュー</th><th>個数</th><th>単価</th><th>金額</th></tr></thead>
         <tbody>
-          ${o.tally.map(t => `
+          ${list.map(t => `
             <tr><td>${esc(t.name)}</td><td class="num">${t.qty}</td>
                 <td class="num">${t.price ? yen(t.price) : "―"}</td>
                 <td class="num">${t.amount ? yen(t.amount) : "―"}</td></tr>`).join("")}
-          <tr><td style="font-weight:900">合計</td>
-              <td class="num" style="font-weight:900">${o.itemCount}</td><td></td>
-              <td class="num" style="font-weight:900">${yen(o.sales)}</td></tr>
+          <tr><td style="font-weight:900">${label}</td>
+              <td class="num" style="font-weight:900">${qty}</td><td></td>
+              <td class="num" style="font-weight:900">${yen(amt)}</td></tr>
         </tbody>
       </table>
-    </div>` : '<p class="empty">まだ注文はありません。</p>';
+    </div>`;
+  };
+  const tFuwa = o.tally.filter(t => !t.ace), tAce = o.tally.filter(t => t.ace);
+  const tally = o.tally.length ? `
+    <h3 class="subh">ふわこっぺ</h3>
+    ${tFuwa.length ? tallyTable(tFuwa, "ふわこっぺ 計") : '<p class="empty">注文はありません。</p>'}
+    <h3 class="subh ace">エース体操クラブ販売</h3>
+    ${tAce.length ? tallyTable(tAce, "エース体操クラブ 計") : '<p class="empty">注文はありません。</p>'}`
+    : '<p class="empty">まだ注文はありません。</p>';
 
   const rows = o.rows.map(r => {
     const dead = (r.status || "確定") === "キャンセル";
@@ -385,6 +421,8 @@ function renderOrder(){
       <td>${esc(r.name)}</td>
       <td class="num">${r.count}</td>
       <td class="num">${yen(r.total)}</td>
+      <td class="num">${yen(r.fuwa ?? r.total)}</td>
+      <td class="num">${r.ace ? yen(r.ace) : "―"}</td>
       <td class="wrapcell">${esc(r.detail)}</td>
       <td>${dead ? '<span class="pill no">取消済</span>'
                  : `<span class="pill ${r.paid ? "yes" : "no"}">${r.paid ? "清算済" : "未清算"}</span>`}</td>
@@ -402,10 +440,11 @@ function renderOrder(){
     <section class="sec">
       <div class="sec-head"><i class="chip"></i><h2>SUMMARY</h2><small>注文の集計</small></div>
       ${kpi}
+      ${vsplit}
     </section>
     <section class="sec">
       <div class="sec-head"><i class="chip"></i><h2>ITEMS</h2><small>発注書（メニュー別の必要数）</small></div>
-      <button class="xlsx" id="export-xlsx">発注書をExcelで出力する</button>
+      <button class="xlsx" id="export-xlsx">発注書・精算表をExcelで出力する</button>
       ${tally}
     </section>
     <section class="sec">
@@ -413,7 +452,7 @@ function renderOrder(){
       <input class="search" id="osearch" type="search" placeholder="注文番号・お名前で絞り込む">
       <div class="tablewrap">
         <table>
-          <thead><tr><th>注文番号</th><th>お名前</th><th>点数</th><th>金額</th><th>明細</th><th>清算</th><th></th><th></th><th></th><th>受付</th></tr></thead>
+          <thead><tr><th>注文番号</th><th>お名前</th><th>点数</th><th>金額</th><th>うちふわこっぺ</th><th>うちエース</th><th>明細</th><th>清算</th><th></th><th></th><th></th><th>受付</th></tr></thead>
           <tbody id="obody">${rows}</tbody>
         </table>
       </div>
@@ -447,6 +486,13 @@ function renderConfig(){
     </section>`;
 }
 
+/** 販売元別の集計（古いGASで split が無い場合は全額ふわこっぺとして扱う） */
+function splitOf(o){
+  if(o.split) return o.split;
+  return { fuwa:{ sales:o.sales, paid:o.paidAmount, unpaid:o.unpaidAmount, items:o.itemCount },
+           ace:{ sales:0, paid:0, unpaid:0, items:0 } };
+}
+
 /* ---------- 発注書のExcel出力 ---------- */
 function exportXlsx(){
   if(typeof XLSX === "undefined"){ toast("Excel機能を読み込めませんでした", true); return; }
@@ -460,55 +506,72 @@ function exportXlsx(){
   const qtyOf = {};
   o.tally.forEach(t => qtyOf[t.name] = t.qty);
   const base = (o.menu && o.menu.length)
-    ? o.menu.map(m => ({ name:m.name, price:m.price, qty:qtyOf[m.name] || 0 }))
-    : o.tally.map(t => ({ name:t.name, price:t.price, qty:t.qty }));
+    ? o.menu.map(m => ({ name:m.name, price:m.price, qty:qtyOf[m.name] || 0, ace:!!m.ace }))
+    : o.tally.map(t => ({ name:t.name, price:t.price, qty:t.qty, ace:!!t.ace }));
   // メニューにない商品（過去メニューなど）も拾う
-  o.tally.forEach(t => { if(!base.some(b => b.name === t.name)) base.push({ name:t.name, price:t.price, qty:t.qty }); });
+  o.tally.forEach(t => { if(!base.some(b => b.name === t.name)) base.push({ name:t.name, price:t.price, qty:t.qty, ace:!!t.ace }); });
 
-  /* --- シート1：発注書 --- */
-  const head = [
-    ["ふわこっぺ　発注書"],
-    [],
+  const info = [
     ["イベント", c.eventName || ""],
     ["開催日",   c.eventDate || ""],
     ["会場",     c.venue || ""],
     ["出力日時", stamp],
-    ["注文件数", `${o.count}件（キャンセル${o.cancelled || 0}件を除く）`],
-    [],
-    ["No", "メニュー名", "単価", "必要数", "金額"]
+    ["注文件数", `${o.count}件（キャンセル${o.cancelled || 0}件を除く）`]
   ];
-  const startRow = head.length + 1;                 // データ開始行（1始まり）
-  const rows = base.map((b, i) => [i + 1, b.name, b.price, b.qty, { f: `C${startRow+i}*D${startRow+i}` }]);
-  const endRow = startRow + base.length - 1;
-  const total = ["", "合計", "",
-    { f: `SUM(D${startRow}:D${endRow})` },
-    { f: `SUM(E${startRow}:E${endRow})` }];
 
-  const ws = XLSX.utils.aoa_to_sheet([...head, ...rows, total]);
-  ws["!cols"] = [{wch:5},{wch:26},{wch:9},{wch:9},{wch:12}];
-  // 金額の表示形式
-  for(let r = startRow; r <= endRow + 1; r++){
-    ["C","E"].forEach(col => {
-      const cell = ws[col + r];
-      if(cell) cell.z = '#,##0';
-    });
-  }
+  /* 発注書シートを作る（販売元ごと） */
+  const orderSheet = (title, items) => {
+    const head = [[title], [], ...info, [], ["No", "メニュー名", "単価", "必要数", "金額"]];
+    const startRow = head.length + 1;               // データ開始行（1始まり）
+    const rows = items.map((b, i) => [i + 1, b.name, b.price, b.qty, { f: `C${startRow+i}*D${startRow+i}` }]);
+    const endRow = startRow + Math.max(items.length, 1) - 1;
+    const total = ["", "合計", "",
+      { f: `SUM(D${startRow}:D${endRow})` },
+      { f: `SUM(E${startRow}:E${endRow})` }];
+    const ws = XLSX.utils.aoa_to_sheet([...head, ...(rows.length ? rows : [["", "（注文なし）", 0, 0, 0]]), total]);
+    ws["!cols"] = [{wch:5},{wch:26},{wch:9},{wch:9},{wch:12}];
+    for(let r = startRow; r <= endRow + 1; r++){
+      ["C","E"].forEach(col => { const cell = ws[col + r]; if(cell) cell.z = '#,##0'; });
+    }
+    return ws;
+  };
+  const wsFuwa = orderSheet("ふわこっぺ　発注書", base.filter(b => !b.ace));
+  const wsAce  = orderSheet("エース体操クラブ販売　集計", base.filter(b => b.ace));
 
-  /* --- シート2：注文一覧 --- */
-  const list = [["注文番号","お名前","電話番号","点数","金額","明細","支払","受取","状況","受付日時"]];
+  /* --- 精算シート：販売元別の金額（ふわこっぺへの入金額） --- */
+  const sp = splitOf(o);
+  const settle = [
+    ["販売元別　精算表"], [], ...info, [],
+    ["販売元", "点数", "売上（予定）", "清算済", "未清算"],
+    ["ふわこっぺ",       sp.fuwa.items, sp.fuwa.sales, sp.fuwa.paid, sp.fuwa.unpaid],
+    ["エース体操クラブ", sp.ace.items,  sp.ace.sales,  sp.ace.paid,  sp.ace.unpaid],
+    ["合計", o.itemCount, o.sales, o.paidAmount, o.unpaidAmount],
+    [],
+    ["ふわこっぺへの入金額（清算済分）", "", sp.fuwa.paid],
+    ["ふわこっぺへの入金額（全注文分）", "", sp.fuwa.sales],
+    ["※清算済＝受付で代金を受け取った注文。全注文分＝キャンセルを除くすべての注文。"]
+  ];
+  const ws0 = XLSX.utils.aoa_to_sheet(settle);
+  ws0["!cols"] = [{wch:32},{wch:8},{wch:13},{wch:13},{wch:13}];
+  Object.keys(ws0).forEach(k => { const cell = ws0[k]; if(cell && typeof cell.v === "number" && /^[C-E]/.test(k)) cell.z = '#,##0'; });
+
+  /* --- 注文一覧 --- */
+  const list = [["注文番号","お名前","電話番号","点数","金額","うちふわこっぺ","うちエース","明細","支払","受取","状況","受付日時"]];
   o.rows.forEach(r => list.push([
-    r.no, r.name, r.tel, r.count, r.total, r.detail,
+    r.no, r.name, r.tel, r.count, r.total, r.fuwa ?? r.total, r.ace || 0, r.detail,
     r.paid ? "支払済" : "未払",
     r.received ? "受取済" : "未受取",
     r.status || "確定", r.at
   ]));
   const ws2 = XLSX.utils.aoa_to_sheet(list);
-  ws2["!cols"] = [{wch:11},{wch:16},{wch:14},{wch:6},{wch:10},{wch:46},{wch:8},{wch:8},{wch:10},{wch:12}];
-  ws2["!autofilter"] = { ref: `A1:J${list.length}` };
+  ws2["!cols"] = [{wch:11},{wch:16},{wch:14},{wch:6},{wch:10},{wch:13},{wch:11},{wch:46},{wch:8},{wch:8},{wch:10},{wch:12}];
+  ws2["!autofilter"] = { ref: `A1:L${list.length}` };
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws,  "発注書");
-  XLSX.utils.book_append_sheet(wb, ws2, "注文一覧");
+  XLSX.utils.book_append_sheet(wb, ws0,    "精算（販売元別）");
+  XLSX.utils.book_append_sheet(wb, wsFuwa, "ふわこっぺ発注書");
+  XLSX.utils.book_append_sheet(wb, wsAce,  "エース体操クラブ");
+  XLSX.utils.book_append_sheet(wb, ws2,    "注文一覧");
 
   const fn = `ACE-EXPO_発注書_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}.xlsx`;
   XLSX.writeFile(wb, fn);
