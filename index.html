@@ -127,6 +127,15 @@
   .item .price{margin-top:4px;font-family:var(--mono);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
   .item.out{opacity:.42}
   .item.out .stepper{display:none}
+  /* エース体操クラブ販売の商品（背景色で区別） */
+  .vendor-head{margin-top:26px;padding:10px 14px;border-radius:12px 12px 0 0;background:#E6F0FF;
+    border:1px solid #BFD3F5;border-bottom:none;font-size:13px;font-weight:900;color:#1C3F86;letter-spacing:.04em}
+  .vendor-head small{display:block;margin-top:2px;font-size:11.5px;font-weight:500;color:#4A6396;letter-spacing:0}
+  .vendor-box{background:#F2F7FF;border:1px solid #BFD3F5;border-radius:0 0 12px 12px;padding:0 14px}
+  .vendor-box .item:last-child{border-bottom:none}
+  .item .note-ace{margin-top:3px;font-size:11.5px;font-weight:700;color:#1C5BC4}
+  .recap li.ace span:first-child::before{content:"エース";display:inline-block;margin-right:6px;padding:0 5px;
+    border-radius:4px;background:#E6F0FF;color:#1C5BC4;font-size:10.5px;font-weight:700;vertical-align:1px}
   .tag-out{flex:none;font-size:12px;font-weight:700;color:var(--sold);border:1px solid currentColor;border-radius:6px;padding:3px 8px}
 
   /* ---------- buttons ---------- */
@@ -745,7 +754,9 @@ const findItem = id => (CONFIG.menu || []).find(m => m.id === id);
 const orderLines = () => [...cart.entries()].map(([id, qty]) => {
   const it = findItem(id);
   return { it, qty, sub: it.price * qty };
-});
+}).filter(l => l.it)
+  .sort((a, b) => ((a.it.ace ? 1 : 0) - (b.it.ace ? 1 : 0)) ||
+                  (CONFIG.menu.indexOf(a.it) - CONFIG.menu.indexOf(b.it)));   // ふわこっぺ → エース、メニュー順
 const orderCount = () => orderLines().reduce((a, l) => a + l.qty, 0);
 const orderTotal = () => orderLines().reduce((a, l) => a + l.sub, 0);
 
@@ -761,13 +772,14 @@ function renderMenu(){
     root.innerHTML = '<p style="padding:30px 0;color:var(--muted);font-size:13px;text-align:center">メニューがありません。</p>';
     return;
   }
-  root.innerHTML = list.map(m => {
+  const card = m => {
     const qty = cart.get(m.id) || 0;
     return `
       <article class="item ${m.soldOut ? "out" : ""}">
         <div class="item-main">
           <h3>${m.name}</h3>
           ${m.desc ? `<p class="desc">${m.desc}</p>` : ""}
+          ${m.ace ? `<p class="note-ace">※エース体操クラブによる販売です</p>` : ""}
           <p class="price">${yen(m.price)}</p>
         </div>
         ${m.soldOut ? `<span class="tag-out">売切</span>` : `
@@ -777,7 +789,12 @@ function renderMenu(){
           <button data-id="${m.id}" data-act="plus" aria-label="増やす">＋</button>
         </div>`}
       </article>`;
-  }).join("");
+  };
+  const fuwa = list.filter(m => !m.ace), ace = list.filter(m => m.ace);
+  root.innerHTML = fuwa.map(card).join("") + (ace.length ? `
+    <div class="vendor-head">エース体操クラブ販売
+      <small>ふわこっぺと一緒に注文・お支払いいただけます</small></div>
+    <div class="vendor-box">${ace.map(card).join("")}</div>` : "");
 
   root.querySelectorAll(".stepper button").forEach(b => {
     b.onclick = () => {
@@ -801,7 +818,7 @@ function renderBar(){
 function openOrderSheet(){
   orderReqId = newReqId(); orderIssuedNo = null;
   document.getElementById("orecap").innerHTML = orderLines()
-    .map(l => `<li><span>${l.it.name} × ${l.qty}</span><span>${yen(l.sub)}</span></li>`).join("");
+    .map(l => `<li class="${l.it.ace ? "ace" : ""}"><span>${l.it.name} × ${l.qty}</span><span>${yen(l.sub)}</span></li>`).join("");
   document.getElementById("orecap-count").textContent = `${orderCount()}点`;
   document.getElementById("orecap-total").textContent = yen(orderTotal());
   document.getElementById("onotice").innerHTML = "";
@@ -821,7 +838,9 @@ function buildOrderMessage(no){
     `お名前：${name || "（未入力）"}`,
     tel ? `電話番号：${tel}` : "",
     ``,
-    ...orderLines().map(l => `・${l.it.name} × ${l.qty}　${yen(l.sub)}`),
+    ...orderLines().filter(l => !l.it.ace).map(l => `・${l.it.name} × ${l.qty}　${yen(l.sub)}`),
+    ...(orderLines().some(l => l.it.ace) ? ["［エース体操クラブ販売］"] : []),
+    ...orderLines().filter(l => l.it.ace).map(l => `・${l.it.name} × ${l.qty}　${yen(l.sub)}`),
     ``,
     `合計 ${orderCount()}点 ／ ${yen(orderTotal())}`,
     CONFIG.orderNote ? `${CONFIG.orderNote}` : "",
