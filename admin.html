@@ -106,6 +106,9 @@
     background:#1F7A4D;color:#fff;font-weight:900;font-size:14.5px;text-align:center}
   .xlsx:active{transform:scale(.99)}
   .xlsx[disabled]{opacity:.55}
+  .pdfbtn{display:block;width:100%;margin-top:12px;padding:13px;border-radius:12px;
+    background:var(--mat);color:#fff;font-weight:900;font-size:14px;text-align:center}
+  .pdfbtn:active{transform:scale(.99)}
   .search{width:100%;margin-top:14px;padding:12px 14px;border:1px solid var(--hair);
     border-radius:11px;background:var(--paper);font-size:16px;font-family:var(--jp)}
   .empty{padding:26px;text-align:center;color:var(--muted);font-size:12.5px}
@@ -432,6 +435,7 @@ function renderOrder(){
             data-val="${r.received ? "未受取" : "受取済"}">${r.received ? "受取を戻す" : "受取済にする"}</button>`}</td>
       <td><button class="mini ${dead ? "" : "warn"}" data-act="order" data-no="${esc(r.no)}"
             data-val="${dead ? "確定" : "キャンセル"}">${dead ? "取消を戻す" : "注文取消"}</button></td>
+      <td>${dead ? "" : `<button class="mini" data-doc="${esc(r.no)}">PDF</button>`}</td>
       <td>${r.at}</td>
     </tr>`;
   }).join("");
@@ -450,20 +454,38 @@ function renderOrder(){
     <section class="sec">
       <div class="sec-head"><i class="chip"></i><h2>LIST</h2><small>注文一覧</small></div>
       <input class="search" id="osearch" type="search" placeholder="注文番号・お名前で絞り込む">
+      <button class="pdfbtn" id="export-pdf">注文書・領収書をPDFで出力する（表示中の注文）</button>
       <div class="tablewrap">
         <table>
-          <thead><tr><th>注文番号</th><th>お名前</th><th>点数</th><th>金額</th><th>うちふわこっぺ</th><th>うちエース</th><th>明細</th><th>清算</th><th></th><th></th><th></th><th>受付</th></tr></thead>
+          <thead><tr><th>注文番号</th><th>お名前</th><th>点数</th><th>金額</th><th>うちふわこっぺ</th><th>うちエース</th><th>明細</th><th>清算</th><th></th><th></th><th></th><th>書類</th><th>受付</th></tr></thead>
           <tbody id="obody">${rows}</tbody>
         </table>
       </div>
       ${o.rows.length ? "" : '<p class="empty">まだ注文はありません。</p>'}
       <p class="hint">受付での流れ：注文番号で絞り込む →　金額を確認 →　「清算済にする」を押す。商品を渡したら「受取済にする」。</p>
+      <p class="hint">PDF：上の青いボタンは、絞り込みで表示中の注文（取消を除く）をまとめて出力します。1件だけなら各行の「PDF」。A4の上半分が注文書、下半分が領収書です（点線で切り離し）。印刷画面の送信先で「PDFに保存」を選ぶとPDFになります。</p>
     </section>`;
 
   bindSearch("osearch", "obody");
   bindActions();
   const xb = document.getElementById("export-xlsx");
   if(xb) xb.onclick = exportXlsx;
+
+  const pb = document.getElementById("export-pdf");
+  if(pb) pb.onclick = () => {
+    // 絞り込みで表示中の行だけ（取消は除く）
+    const shown = new Set([...document.querySelectorAll("#obody tr")]
+      .filter(tr => tr.style.display !== "none").map(tr => tr.querySelector(".no")?.textContent));
+    const list = o.rows.filter(r => shown.has(r.no) && (r.status || "確定") !== "キャンセル");
+    if(!list.length){ toast("出力できる注文がありません", true); return; }
+    openOrderDocs(list);
+  };
+  document.querySelectorAll("button[data-doc]").forEach(b => {
+    b.onclick = () => {
+      const r = o.rows.find(x => x.no === b.dataset.doc);
+      if(r) openOrderDocs([r]);
+    };
+  });
 }
 
 function renderConfig(){
@@ -576,6 +598,175 @@ function exportXlsx(){
   const fn = `ACE-EXPO_発注書_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}.xlsx`;
   XLSX.writeFile(wb, fn);
   toast("発注書を出力しました");
+}
+
+/* ---------- 注文書・領収書（A4＝上：注文書A5／下：領収書A5） ---------- */
+function openOrderDocs(list){
+  const o = DATA.order, c = DATA.config;
+  // 商品名 → 単価・販売元（表示中メニュー＋集計にある過去メニュー）
+  const info = {};
+  (o.tally || []).forEach(t => info[t.name] = { price:t.price, ace:!!t.ace });
+  (o.menu  || []).forEach(m => info[m.name] = { price:m.price, ace:!!m.ace });
+
+  const parse = detail => String(detail || "").split("/").map(x => x.trim()).filter(Boolean).map(x => {
+    const i = x.lastIndexOf("×");
+    const name = i < 0 ? x : x.slice(0, i).trim(), qty = i < 0 ? 1 : Number(x.slice(i + 1)) || 0;
+    const m = info[name] || { price:0, ace:false };
+    return { name, qty, price:m.price, sub:m.price * qty, ace:m.ace };
+  });
+  const sorted = [...list].sort((a, b) => String(a.no).localeCompare(String(b.no), "ja", { numeric:true }));
+
+  const page = r => {
+    const items = parse(r.detail);
+    const fuwa = items.filter(i => !i.ace), ace = items.filter(i => i.ace);
+    const fuwaAmt = r.fuwa ?? (r.total - (r.ace || 0)), aceAmt = r.ace || 0;
+    const lineRows = (arr, vendor) => arr.map(i => `
+      <tr><td class="v">${vendor}</td><td>${esc(i.name)}</td>
+          <td class="n">${i.price ? yen(i.price) : "―"}</td><td class="n">${i.qty}</td>
+          <td class="n">${i.price ? yen(i.sub) : "―"}</td></tr>`).join("");
+    const many = items.length > 8 ? " many" : "";
+    const ck = on => on ? "☑" : "☐";
+
+    return `
+    <section class="page">
+      <div class="half order${many}">
+        <div class="hd">
+          <div><p class="ttl">注 文 書</p>
+               <p class="ev">${esc(c.eventEn || "ACE EXPO")}　ふわこっぺ注文${c.eventDate ? "　｜　" + esc(c.eventDate) : ""}</p></div>
+          <div class="nobox"><span>注文番号</span><b>${esc(r.no)}</b></div>
+        </div>
+        <div class="who">
+          <p class="name">${esc(r.name)}<small>様</small></p>
+          <p class="meta">${r.tel ? "TEL " + esc(r.tel) + "　" : ""}受付 ${esc(r.at)}</p>
+        </div>
+        <table class="items">
+          <thead><tr><th class="v">販売元</th><th>品名</th><th class="n">単価</th><th class="n">数量</th><th class="n">金額</th></tr></thead>
+          <tbody>
+            ${lineRows(fuwa, "ふわこっぺ")}
+            ${fuwa.length && ace.length ? `<tr class="sub"><td colspan="4">ふわこっぺ　小計</td><td class="n">${yen(fuwaAmt)}</td></tr>` : ""}
+            ${lineRows(ace, "エース体操クラブ")}
+            ${fuwa.length && ace.length ? `<tr class="sub ace"><td colspan="4">エース体操クラブ　小計</td><td class="n">${yen(aceAmt)}</td></tr>` : ""}
+          </tbody>
+          <tfoot><tr><td colspan="3">合計</td><td class="n">${r.count}点</td><td class="n">${yen(r.total)}</td></tr></tfoot>
+        </table>
+        <div class="foot">
+          <p class="memo">${r.memo ? "連絡事項：" + esc(r.memo) : ""}</p>
+          <p class="checks">${ck(r.paid)} 清算済　　${ck(r.received)} 受取済</p>
+        </div>
+      </div>
+
+      <div class="cut"><span>✂ きりとり</span></div>
+
+      <div class="half receipt">
+        <div class="rhd">
+          <p class="ttl">領 収 書</p>
+          <p class="rno">No. ${esc(r.no)}<br>　　　　年　　月　　日</p>
+        </div>
+        <p class="to">${esc(r.name)}<small>様</small></p>
+        <div class="amt"><span>金額</span><b>${yen(r.total)}<i>－</i></b><small>（税込）</small></div>
+        <p class="tadashi">但し　${esc(c.eventEn || "ACE EXPO")} 飲食代として<br>上記正に領収いたしました。</p>
+        <div class="rbottom">
+          <table class="bd">
+            <tr><th colspan="2">内訳</th></tr>
+            <tr><td>ふわこっぺ</td><td class="n">${yen(fuwaAmt)}</td></tr>
+            ${aceAmt ? `<tr><td>エース体操クラブ</td><td class="n">${yen(aceAmt)}</td></tr>` : ""}
+          </table>
+          <div class="issuer">
+            <p class="org">${esc(c.eventName || "")}</p>
+            <p class="addr">${esc(c.venue || "")}</p>
+            <div class="stamp">印</div>
+          </div>
+        </div>
+      </div>
+    </section>`;
+  };
+
+  const css = `
+  @page{size:A4 portrait;margin:0}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#E9EAEC}
+  body{font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;color:#151A26;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .bar{position:sticky;top:0;z-index:2;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;
+    padding:12px;background:#1C2A4E;color:#fff;font-size:13px}
+  .bar button{padding:9px 18px;border:0;border-radius:9px;background:#FFB627;color:#151A26;font-weight:900;font-size:14px;cursor:pointer}
+  .page{width:210mm;height:297mm;margin:8mm auto;background:#fff;position:relative;overflow:hidden;
+    box-shadow:0 2px 10px rgba(0,0,0,.15);break-after:page;page-break-after:always}
+  .half{height:148.5mm;padding:11mm 15mm 9mm;position:relative}
+  .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ttl{font-size:21pt;font-weight:900;letter-spacing:.12em}
+  /* 注文書 */
+  .hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.2pt solid #151A26;padding-bottom:2.5mm}
+  .ev{margin-top:1mm;font-size:8.5pt;color:#555}
+  .nobox{border:1.6pt solid #151A26;border-radius:2mm;padding:1.6mm 4mm;text-align:center;min-width:40mm}
+  .nobox span{display:block;font-size:7.5pt;color:#555;letter-spacing:.1em}
+  .nobox b{display:block;font-size:22pt;line-height:1.15;letter-spacing:.04em}
+  .who{display:flex;justify-content:space-between;align-items:baseline;margin:3.5mm 0 2.5mm}
+  .name{font-size:15pt;font-weight:700}.name small,.to small{font-size:10pt;margin-left:2mm;font-weight:500}
+  .meta{font-size:8.5pt;color:#555}
+  table{border-collapse:collapse;width:100%}
+  .items th{font-size:8pt;font-weight:700;text-align:left;background:#EEF0F3;padding:1.4mm 2mm;border-bottom:.8pt solid #151A26}
+  .items th.n{text-align:right}
+  .items td{font-size:10pt;padding:1.5mm 2mm;border-bottom:.4pt solid #C9CDD4}
+  .items .v{width:30mm;font-size:8pt;color:#555}
+  .items tr.sub td{font-size:8.5pt;font-weight:700;background:#FFF6E0;text-align:right}
+  .items tr.sub.ace td{background:#E9F1FF}
+  .items tfoot td{font-size:12pt;font-weight:900;border-top:1.4pt solid #151A26;border-bottom:none;padding-top:2mm}
+  .items tfoot td:first-child{text-align:right;letter-spacing:.3em}
+  .many .items td{font-size:8.5pt;padding:.9mm 2mm}
+  .foot{position:absolute;left:15mm;right:15mm;bottom:8mm;display:flex;justify-content:space-between;gap:6mm;font-size:9pt}
+  .memo{flex:1;color:#333}
+  .checks{white-space:nowrap;font-size:10.5pt;font-weight:700}
+  /* 切り取り線 */
+  .cut{position:absolute;left:0;right:0;top:148.5mm;border-top:.8pt dashed #888;height:0}
+  .cut span{position:absolute;left:50%;top:-2.2mm;transform:translateX(-50%);background:#fff;padding:0 3mm;font-size:7pt;color:#888;line-height:4mm}
+  /* 領収書 */
+  .rhd{display:flex;justify-content:center;position:relative;padding-top:1mm}
+  .receipt .ttl{font-size:22pt;letter-spacing:.5em;padding-left:.5em;border-bottom:1.6pt double #151A26}
+  .rno{position:absolute;right:0;top:0;font-size:8.5pt;text-align:right;line-height:1.7;color:#333}
+  .to{margin-top:7mm;font-size:16pt;font-weight:700;width:105mm;border-bottom:.8pt solid #151A26;padding:0 2mm 1mm}
+  .amt{margin:6mm auto 0;width:130mm;display:flex;align-items:baseline;gap:5mm;background:#F2F3F5;border-radius:2mm;padding:3mm 7mm}
+  .amt span{font-size:10pt;font-weight:700;letter-spacing:.3em}
+  .amt b{flex:1;text-align:center;font-size:27pt;font-weight:900;letter-spacing:.04em}
+  .amt b i{font-style:normal;margin-left:1mm}
+  .amt small{font-size:8.5pt;color:#555}
+  .tadashi{margin:4.5mm 0 0 22mm;font-size:10pt;line-height:1.8}
+  .rbottom{position:absolute;left:15mm;right:15mm;bottom:9mm;display:flex;justify-content:space-between;align-items:flex-end}
+  .bd{width:72mm}
+  .bd th{font-size:8pt;text-align:left;padding:1mm 2mm;background:#EEF0F3}
+  .bd td{font-size:9.5pt;padding:1.1mm 2mm;border-bottom:.4pt solid #C9CDD4}
+  .issuer{position:relative;text-align:right;padding-right:20mm;min-height:18mm}
+  .org{font-size:12pt;font-weight:700}
+  .addr{font-size:8.5pt;color:#555;margin-top:.8mm}
+  .stamp{position:absolute;right:0;top:-1mm;width:17mm;height:17mm;border:.6pt solid #AAA;border-radius:50%;
+    display:grid;place-items:center;font-size:8pt;color:#AAA}
+  @media print{
+    html,body{background:#fff}
+    .bar{display:none}
+    .page{margin:0;box-shadow:none}
+  }`;
+
+  const first = sorted[0].no, last = sorted[sorted.length - 1].no;
+  const title = `ACE-EXPO_注文書領収書_${first}${sorted.length > 1 ? "-" + last : ""}`;
+  const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>${esc(title)}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>${css}</style></head><body>
+    <div class="bar"><span>${sorted.length}件（A4 ${sorted.length}枚）</span>
+      <button onclick="print()">PDFに保存／印刷</button>
+      <span>印刷画面の送信先で「PDFに保存」を選んでください</span></div>
+    ${sorted.map(page).join("")}
+    <script>
+      // フォントの読み込みを待ってから印刷画面を開く（最大3秒）
+      Promise.race([document.fonts.ready, new Promise(ok => setTimeout(ok, 3000))])
+        .then(() => setTimeout(() => print(), 300));
+    <\/script></body></html>`;
+
+  const w = window.open("", "_blank");
+  if(!w){ toast("ポップアップがブロックされました。許可してからもう一度押してください", true); return; }
+  w.document.open(); w.document.write(html); w.document.close();
 }
 
 /* ---------- 部品 ---------- */
