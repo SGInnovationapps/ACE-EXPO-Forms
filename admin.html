@@ -25,11 +25,13 @@
     font-feature-settings:"tnum" 1;padding-bottom:60px}
   button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
   :focus-visible{outline:3px solid var(--mat);outline-offset:2px}
-  .wrap{max-width:760px;margin:0 auto;padding:0 20px}
+  :root{--maxw:760px}
+  @media (min-width:1000px){ :root{--maxw:1280px} }
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 20px}
 
   /* header */
   .top{position:sticky;top:0;z-index:30;background:var(--mat);color:#fff}
-  .top-in{max-width:760px;margin:0 auto;padding:13px 20px;display:flex;
+  .top-in{max-width:var(--maxw);margin:0 auto;padding:13px 20px;display:flex;
     align-items:center;justify-content:space-between;gap:14px}
   .mark{font-family:var(--display);font-weight:700;font-size:20px;letter-spacing:.06em;line-height:1.15}
   .mark span{display:block;font-family:var(--jp);font-size:10px;font-weight:500;
@@ -38,11 +40,11 @@
     padding:9px 14px;border-radius:999px;flex:none}
   .reload[disabled]{opacity:.55}
   .tabs{background:var(--mat);border-top:1px solid rgba(255,255,255,.12)}
-  .tabs-in{max-width:760px;margin:0 auto;padding:0 20px;display:flex;gap:22px}
+  .tabs-in{max-width:var(--maxw);margin:0 auto;padding:0 20px;display:flex;gap:22px}
   .tab{padding:11px 0 9px;font-size:13px;font-weight:700;color:#8FA0C4;
     border-bottom:2px solid transparent;margin-bottom:-1px}
   .tab[aria-selected="true"]{color:#fff;border-bottom-color:var(--score)}
-  .stamp{font-size:10.5px;color:#8FA0C4;text-align:right;padding:6px 20px 0;max-width:760px;margin:0 auto}
+  .stamp{font-size:10.5px;color:#8FA0C4;text-align:right;padding:6px 20px 0;max-width:var(--maxw);margin:0 auto}
 
   /* cards */
   .sec{margin-top:26px}
@@ -93,6 +95,15 @@
   tr.off{opacity:.45}
   tr.off td.no{text-decoration:line-through}
   .wrapcell{white-space:normal;min-width:190px;font-size:12px;color:#39415A}
+  /* 一覧をPC幅に収めるための詰め */
+  td .sub{display:block;margin-top:2px;font-size:10.5px;color:var(--muted);font-family:var(--jp);font-weight:500}
+  td .memo-s{display:block;margin-top:3px;max-width:240px;white-space:normal;font-size:11px;line-height:1.45;color:#8A5A00}
+  td.acts{white-space:normal;min-width:190px}
+  td.acts .mini{margin:2px 2px 2px 0}
+  @media (min-width:1000px){
+    th{padding:9px 8px} td{padding:9px 8px}
+    .wrapcell{min-width:170px}
+  }
 
   .pill{font-size:11px;font-weight:700;border-radius:6px;padding:3px 7px;border:1px solid currentColor}
   .pill.no{color:var(--sold)}
@@ -403,14 +414,11 @@ function renderWaitSection(){
     <tr class="${live ? "" : r.status === "辞退" ? "off" : "done"}" data-search="${esc(r.no + r.name + r.slot + r.vno)}">
       <td class="num">${live ? r.rank : ""}</td>
       <td class="no">${esc(r.no)}</td>
-      <td>${esc(r.name)}</td>
+      <td>${esc(r.name)}${r.tel ? `<span class="sub">TEL ${esc(r.tel)}</span>` : ""}${r.memo ? `<span class="memo-s">連絡：${esc(r.memo)}</span>` : ""}</td>
       <td>${esc(r.slot)}${live ? `<br><small class="muted">残り${leftOf(r.slotId)}名</small>` : ""}</td>
-      <td class="num">${r.total}</td>
+      <td class="num">${r.total}<span class="sub">${ages(r)}</span></td>
       <td>${pill(r.status)}${r.vno ? `<br><small class="muted">→ ${esc(r.vno)}</small>` : ""}</td>
       <td class="btns">${btns}</td>
-      <td>${ages(r)}</td>
-      <td>${esc(r.tel)}</td>
-      <td class="wrapcell">${esc(r.memo)}</td>
       <td>${r.at}</td>
     </tr>`;
   };
@@ -421,7 +429,7 @@ function renderWaitSection(){
       <input class="search" id="wsearch" type="search" placeholder="待ち番号・お名前で絞り込む">
       <div class="tablewrap">
         <table>
-          <thead><tr><th>順位</th><th>待ち番号</th><th>代表者</th><th>時間帯</th><th>人数</th><th>状況</th><th></th><th>内訳</th><th>電話</th><th>連絡事項</th><th>受付</th></tr></thead>
+          <thead><tr><th>順位</th><th>待ち番号</th><th>代表者・連絡事項</th><th>時間帯</th><th>人数</th><th>状況</th><th>操作</th><th>受付</th></tr></thead>
           <tbody id="wbody">${alive.map(row).join("")}${done.map(row).join("")}</tbody>
         </table>
       </div>
@@ -561,23 +569,18 @@ function renderOrder(){
   const rows = o.rows.map(r => {
     const dead = (r.status || "確定") === "キャンセル";
     return `
-    <tr class="${dead ? "off" : ""}" data-search="${esc(r.no + r.name + r.tel)}">
+    <tr class="${dead ? "off" : ""}" data-search="${esc(r.no + r.name + r.tel + r.memo)}">
       <td class="no">${esc(r.no)}</td>
-      <td>${esc(r.name)}</td>
+      <td>${esc(r.name)}${r.tel ? `<span class="sub">TEL ${esc(r.tel)}</span>` : ""}${r.memo ? `<span class="memo-s">連絡：${esc(r.memo)}</span>` : ""}</td>
       <td class="num">${r.count}</td>
-      <td class="num">${yen(r.total)}</td>
-      <td class="num">${yen(r.fuwa ?? r.total)}</td>
-      <td class="num">${r.ace ? yen(r.ace) : "―"}</td>
+      <td class="num">${yen(r.total)}${r.ace ? `<span class="sub">ふわこっぺ ${yen(r.fuwa ?? r.total - r.ace)}</span><span class="sub">エース ${yen(r.ace)}</span>` : ""}</td>
       <td class="wrapcell">${esc(r.detail)}</td>
       <td>${dead ? '<span class="pill no">取消済</span>'
-                 : `<span class="pill ${r.paid ? "yes" : "no"}">${r.paid ? "清算済" : "未清算"}</span>`}</td>
-      <td>${dead ? "" : `<button class="mini ${r.paid ? "" : "warn"}" data-act="pay" data-no="${esc(r.no)}"
-            data-val="${r.paid ? "未払" : "支払済"}">${r.paid ? "未清算に戻す" : "清算済にする"}</button>`}</td>
-      <td>${dead ? "" : `<button class="mini" data-act="receive" data-no="${esc(r.no)}"
-            data-val="${r.received ? "未受取" : "受取済"}">${r.received ? "受取を戻す" : "受取済にする"}</button>`}</td>
-      <td><button class="mini ${dead ? "" : "warn"}" data-act="order" data-no="${esc(r.no)}"
-            data-val="${dead ? "確定" : "キャンセル"}">${dead ? "取消を戻す" : "注文取消"}</button></td>
-      <td>${dead ? "" : `<button class="mini" data-doc="${esc(r.no)}">PDF</button>`}</td>
+                 : `<span class="pill ${r.paid ? "yes" : "no"}">${r.paid ? "清算済" : "未清算"}</span>`}${r.received && !dead ? '<span class="sub">受取済</span>' : ""}</td>
+      <td class="acts">${dead ? "" : `<button class="mini ${r.paid ? "" : "warn"}" data-act="pay" data-no="${esc(r.no)}"
+            data-val="${r.paid ? "未払" : "支払済"}">${r.paid ? "未清算に戻す" : "清算済にする"}</button><button class="mini" data-act="receive" data-no="${esc(r.no)}"
+            data-val="${r.received ? "未受取" : "受取済"}">${r.received ? "受取を戻す" : "受取済にする"}</button>`}<button class="mini ${dead ? "" : "warn"}" data-act="order" data-no="${esc(r.no)}"
+            data-val="${dead ? "確定" : "キャンセル"}">${dead ? "取消を戻す" : "注文取消"}</button>${dead ? "" : `<button class="mini" data-doc="${esc(r.no)}">PDF</button>`}</td>
       <td>${r.at}</td>
     </tr>`;
   }).join("");
@@ -599,7 +602,7 @@ function renderOrder(){
       <button class="pdfbtn" id="export-pdf">注文書・領収書をPDFで出力する（表示中の注文）</button>
       <div class="tablewrap">
         <table>
-          <thead><tr><th>注文番号</th><th>お名前</th><th>点数</th><th>金額</th><th>うちふわこっぺ</th><th>うちエース</th><th>明細</th><th>清算</th><th></th><th></th><th></th><th>書類</th><th>受付</th></tr></thead>
+          <thead><tr><th>注文番号</th><th>お名前・連絡事項</th><th>点数</th><th>金額</th><th>明細</th><th>清算</th><th>操作</th><th>受付</th></tr></thead>
           <tbody id="obody">${rows}</tbody>
         </table>
       </div>
