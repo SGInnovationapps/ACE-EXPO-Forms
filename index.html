@@ -91,6 +91,16 @@
   .slot h3{font-size:17px;font-weight:900}
   .slot .time{margin-top:3px;font-family:var(--mono);font-size:13px;font-weight:500;color:#39415A}
   .slot .snote{margin-top:4px;font-size:11.5px;color:var(--muted)}
+  /* キャンセル待ち（追加機能） */
+  .slot.haswait{border-radius:14px 14px 0 0;border-color:#C8B27A}
+  .waitbtn{width:100%;margin-top:0;padding:13px 18px;border:1.5px solid #C8B27A;border-top:none;
+    border-radius:0 0 14px 14px;background:#FFF8E6;display:flex;justify-content:space-between;align-items:center;
+    gap:10px;text-align:left;font-size:14px;font-weight:900;color:#6B4E0E}
+  .waitbtn small{font-size:11px;font-weight:500;color:#8A6D2C;white-space:nowrap}
+  .waitbtn[aria-pressed="true"]{background:#FFEFC2;box-shadow:0 0 0 3px rgba(200,178,122,.35)}
+  .wait-banner{margin-top:12px;padding:12px 14px;border-radius:10px;background:#FFF8E6;border:1px solid #E5D3A0;
+    font-size:12.5px;color:#5C4511;line-height:1.6}
+  .wait-banner b{font-size:14px}
   .seat{flex:none;text-align:center;border-radius:9px;padding:7px 10px;min-width:78px;border:1.5px solid var(--mat)}
   .seat b{display:block;font-family:var(--mono);font-weight:700;font-size:17px;line-height:1.15}
   .seat span{font-size:10px;letter-spacing:.06em;color:var(--muted)}
@@ -276,6 +286,7 @@
     <section class="sec" id="people-sec" hidden>
       <div class="sec-head"><i class="chip"></i><h2>PEOPLE</h2><small>参加人数</small></div>
       <p class="sec-note">ご来場される方の人数を入力してください。</p>
+      <div class="wait-banner" id="wait-banner" hidden></div>
       <div id="counters"></div>
       <div class="sum">
         <span class="l">合計</span>
@@ -288,7 +299,7 @@
   <!-- ==================== ふわこっぺ注文 ==================== -->
   <div id="panel-order" role="tabpanel" hidden>
     <section class="hero">
-      <p class="eyebrow">ACE EXPO ／ FUWAKOPPE</p>
+      <p class="eyebrow">ACE EXPO ／ KOPPEPAN</p>
       <p class="lead" id="order-lead">ふわこっぺの事前注文です。エース体操クラブ本校１階受付で事前清算となります。クラブ開館時間帯にお声がけください。当日は、ブースで注文番号を伝えて商品をお受け取りください。</p>
       <figure class="menupic">
         <img src="menu.jpg" alt="ふわこっぺ メニュー一覧" loading="lazy" width="1200" height="900">
@@ -351,6 +362,44 @@
   </div>
 </section>
 
+
+<!-- ==================== キャンセル待ち：確認（追加機能） ==================== -->
+<section class="sheet" id="wsheet" aria-hidden="true">
+  <div class="sheet-top">
+    <h2>キャンセル待ちの登録</h2>
+    <button class="close" id="wclose" aria-label="閉じる">×</button>
+  </div>
+  <div class="sheet-body">
+    <div class="recap">
+      <h3>WAITLIST</h3>
+      <ul id="wrecap"></ul>
+      <div class="tot"><span>合計</span><span id="wrecap-total">0名</span></div>
+    </div>
+
+    <div class="field">
+      <label for="w-name">代表者氏名（保護者）<span class="req">必須</span></label>
+      <input id="w-name" type="text" placeholder="エース 太郎" autocomplete="name">
+    </div>
+    <div class="field">
+      <label for="w-tel">電話番号（任意）</label>
+      <input id="w-tel" type="tel" placeholder="09012345678" autocomplete="tel">
+      <p class="hint">LINEでご連絡がつかない場合に使います。</p>
+    </div>
+    <div class="field">
+      <label for="w-memo">連絡事項（任意）</label>
+      <textarea id="w-memo" placeholder="人数が減っても参加できる、など"></textarea>
+    </div>
+
+    <div id="wnotice"></div>
+
+    <p class="preview-lbl">LINEに入るキャンセル待ち登録書</p>
+    <div class="preview" id="wpreview"></div>
+
+    <a class="send" id="wsend" href="#" aria-disabled="true">キャンセル待ちに登録してLINEで送る</a>
+    <button class="sub" id="wcopy">登録書をコピーする</button>
+    <p class="caution" id="wcaution"><b>この時点では予約は確定していません。</b>お席に空きが出た場合、登録順に公式LINEでご案内し、こちらで予約番号を発行します。登録ボタンを押すと待ち番号が発行され、LINEが開きますので、そのまま送信してください。</p>
+  </div>
+</section>
 
 <section class="sheet" id="osheet" aria-hidden="true">
   <div class="sheet-top">
@@ -419,6 +468,9 @@ const newReqId = () => (window.crypto && crypto.randomUUID)
 
 /* ============================ 来場予約 ============================ */
 let slotId = null;
+let waitMode = false;                 // true：満席の時間帯のキャンセル待ちを入力中
+const WAIT_MAX = 20;                  // キャンセル待ちで入力できる人数の上限
+let waitReqId = null, waitIssuedNo = null;
 const people = { adult:0, high:0, junior:0, elem:0, kids:0 };
 
 const peopleTotal = () => AGES.reduce((a, x) => a + people[x.key], 0);
@@ -512,15 +564,20 @@ function renderSlots(){
     root.innerHTML = '<p style="padding:30px 0;color:var(--muted);font-size:13px;text-align:center">受付中の時間帯がありません。</p>';
     return;
   }
+  // キャンセル待ち中の時間帯に空きが出たら、通常の予約に戻す
+  if(waitMode){ const cs = currentSlot(); if(!cs || !cs.full || cs.closed){ waitMode = false; slotId = null; } }
+  const W = CONFIG.wait || {};
   root.innerHTML = list.map(s => {
     const gone = s.full || s.closed;
+    const canWait = W.enabled && s.full && !s.closed;
+    const waiting = (W.counts || {})[s.id] || 0;
     const seat = s.closed
       ? `<div class="seat none"><b>―</b><span>受付終了</span></div>`
       : s.full
         ? `<div class="seat none"><b>満員</b><span>ご予約不可</span></div>`
         : `<div class="seat ${s.left <= 10 ? "few" : ""}"><b>${s.left}</b><span>残り／${s.capacity}名</span></div>`;
     return `
-      <button class="slot ${gone ? "gone" : ""}" data-slot="${s.id}"
+      <button class="slot ${gone ? "gone" : ""} ${canWait ? "haswait" : ""}" data-slot="${s.id}"
               aria-pressed="${s.id === slotId}" ${gone ? "disabled" : ""}>
         <div>
           <h3>${s.label}</h3>
@@ -528,12 +585,26 @@ function renderSlots(){
           ${s.note ? `<p class="snote">${s.note}</p>` : ""}
         </div>
         ${seat}
-      </button>`;
+      </button>${canWait ? `
+      <button class="waitbtn" data-wait="${s.id}" aria-pressed="${waitMode && s.id === slotId}">
+        キャンセル待ちに登録する<small>${waiting ? `現在 ${waiting}組 待ち` : "まだ待ちはありません"}</small>
+      </button>` : ""}`;
   }).join("");
+
+  root.querySelectorAll(".waitbtn").forEach(b => {
+    b.onclick = () => {
+      slotId = b.dataset.wait; waitMode = true;
+      AGES.forEach(a => people[a.key] = 0);
+      renderSlots(); renderCounters();
+      document.getElementById("people-sec").hidden = false;
+      document.getElementById("people-sec").scrollIntoView({ behavior:"smooth", block:"start" });
+    };
+  });
+  syncWaitUI();
 
   root.querySelectorAll(".slot").forEach(b => {
     b.onclick = () => {
-      slotId = b.dataset.slot;
+      slotId = b.dataset.slot; waitMode = false;
       AGES.forEach(a => people[a.key] = 0);
       renderSlots(); renderCounters();
       document.getElementById("people-sec").hidden = false;
@@ -544,7 +615,7 @@ function renderSlots(){
 
 function renderCounters(){
   const s = currentSlot();
-  const left = s ? s.left : 0;
+  const left = s ? (waitMode ? WAIT_MAX : s.left) : 0;
   const total = peopleTotal();
 
   document.getElementById("counters").innerHTML = AGES.map(a => `
@@ -574,7 +645,7 @@ function renderCounters(){
 
   const sec = document.getElementById("people-sec");
   let warn = sec.querySelector(".sec-warn");
-  if(total >= left && left > 0){
+  if(!waitMode && total >= left && left > 0){
     if(!warn){
       warn = document.createElement("p");
       warn.className = "caution sec-warn";
@@ -743,6 +814,121 @@ async function submitVisit(e){
     btn.textContent = "LINEをもう一度開く（予約番号 " + no + "）";
     btn.setAttribute("aria-disabled", "false");
     notice("vnotice", "予約番号 " + no + " を発行しました。LINEが開かない・送信し忘れた場合は、下のボタンからもう一度開けます（二重予約にはなりません）。", true);
+  }
+  location.href =`https://line.me/R/oaMessage/${encodeURIComponent(CONFIG.lineId)}/?${encodeURIComponent(msg)}`;
+}
+
+
+/* ============================ キャンセル待ち（追加機能） ============================ */
+/** 人数入力欄の表示を、通常予約／キャンセル待ちで切り替える */
+function syncWaitUI(){
+  const s = currentSlot();
+  const banner = document.getElementById("wait-banner");
+  const next = document.getElementById("visit-next");
+  if(waitMode && s){
+    const n = ((CONFIG.wait || {}).counts || {})[s.id] || 0;
+    banner.hidden = false;
+    banner.innerHTML = `<b>キャンセル待ち：${s.label}</b><br>` +
+      `満席のため、キャンセル待ちとして登録します（現在 ${n}組 待ち）。お席に空きが出た場合、登録順に公式LINEでご案内します。` +
+      ((CONFIG.wait || {}).note ? `<br>${CONFIG.wait.note}` : "");
+    next.textContent = "キャンセル待ちの確認へ";
+  }else{
+    banner.hidden = true;
+    next.textContent = "予約内容の確認へ";
+  }
+}
+
+function openWaitSheet(){
+  waitReqId = newReqId(); waitIssuedNo = null; waitRank = 0;
+  const s = currentSlot(); if(!s) return;
+  document.getElementById("wrecap").innerHTML = `
+    <li><span>時間帯</span><span>${s.label}</span></li>
+    ${s.time ? `<li><span style="color:var(--muted)">${s.time}</span><span></span></li>` : ""}
+    ${AGES.filter(a => people[a.key] > 0).map(a =>
+      `<li><span>${a.label}</span><span>${people[a.key]}名</span></li>`).join("")}`;
+  document.getElementById("wrecap-total").textContent = `${peopleTotal()}名`;
+  document.getElementById("wnotice").innerHTML = "";
+  document.getElementById("wsend").textContent = "キャンセル待ちに登録してLINEで送る";
+  renderWaitPreview();
+  openSheet("wsheet");
+}
+
+function buildWaitMessage(no, rank){
+  const s = currentSlot();
+  const name = document.getElementById("w-name").value.trim();
+  const tel  = document.getElementById("w-tel").value.trim();
+  const memo = document.getElementById("w-memo").value.trim();
+  return [
+    `【キャンセル待ち】${CONFIG.eventEn || "ACE EXPO"}`,
+    `待ち番号：${no || "（送信時に発行されます）"}`,
+    rank ? `順番：${s ? s.label : ""}の${rank}番目` : "",
+    ``,
+    `代表者：${name || "（未入力）"}`,
+    tel ? `電話番号：${tel}` : "",
+    `時間帯：${s ? s.label : ""}${s && s.time ? `（${s.time}）` : ""}`,
+    ``,
+    ...AGES.filter(a => people[a.key] > 0).map(a => `・${a.label} ${people[a.key]}名`),
+    ``,
+    `合計 ${peopleTotal()}名`,
+    `※予約はまだ確定していません。空きが出た場合にLINEでご案内します。`,
+    memo ? `\n連絡事項：${memo}` : ""
+  ].filter(l => l !== "").join("\n");
+}
+
+function renderWaitPreview(){
+  document.getElementById("wpreview").textContent = buildWaitMessage(waitIssuedNo, waitRank);
+  const ok = document.getElementById("w-name").value.trim() && peopleTotal() > 0;
+  document.getElementById("wsend").setAttribute("aria-disabled", ok ? "false" : "true");
+}
+
+let waitRank = 0;
+async function submitWait(e){
+  if(e) e.preventDefault();
+  const btn = document.getElementById("wsend");
+  if(btn.getAttribute("aria-disabled") === "true") return;
+  const name = document.getElementById("w-name").value.trim();
+  if(!name){ notice("wnotice", "代表者氏名を入力してください。"); return; }
+  const s = currentSlot();
+  let no = "W-" + String(Math.floor(Math.random() * 900) + 100);   // GAS未接続時の仮番号
+
+  if(GAS_URL && waitIssuedNo){
+    no = waitIssuedNo;                        // 発行済み：再登録せず、同じ番号でLINEだけ開き直す
+  }else if(GAS_URL){
+    btn.textContent = "待ち番号を発行しています…";
+    btn.setAttribute("aria-disabled", "true");
+    try{
+      const r = await postGAS({
+        type:"wait", reqId:waitReqId, slotId:s.id, name:name,
+        tel:document.getElementById("w-tel").value.trim(),
+        people:people, memo:document.getElementById("w-memo").value.trim()
+      }, { label:"待ち番号を発行しています…" });
+      if(!r.ok){
+        notice("wnotice", r.message || "登録できませんでした。");
+        btn.textContent = "キャンセル待ちに登録してLINEで送る";
+        btn.setAttribute("aria-disabled", "false");
+        if(r.error === "available"){            // 空きが出た：通常予約に戻す
+          await refreshConfig();
+          renderSlots(); renderCounters();
+        }
+        return;
+      }
+      no = r.no; waitRank = r.rank || 0;
+      waitIssuedNo = no;
+    }catch(err){
+      notice("wnotice", netMessage(err));
+      btn.textContent = "もう一度送信する";
+      btn.setAttribute("aria-disabled", "false");
+      return;
+    }
+  }
+
+  const msg = buildWaitMessage(no, waitRank);
+  document.getElementById("wpreview").textContent = msg;
+  if(GAS_URL){
+    btn.textContent = "LINEをもう一度開く（待ち番号 " + no + "）";
+    btn.setAttribute("aria-disabled", "false");
+    notice("wnotice", "待ち番号 " + no + (waitRank ? `（${waitRank}番目）` : "") +
+      " で登録しました。LINEが開かない・送信し忘れた場合は、下のボタンからもう一度開けます（二重登録にはなりません）。", true);
   }
   location.href =`https://line.me/R/oaMessage/${encodeURIComponent(CONFIG.lineId)}/?${encodeURIComponent(msg)}`;
 }
@@ -957,7 +1143,17 @@ function switchTab(which){
 document.getElementById("tab-visit").onclick = () => switchTab("visit");
 document.getElementById("tab-order").onclick = () => switchTab("order");
 
-document.getElementById("visit-next").onclick = openVisitSheet;
+document.getElementById("visit-next").onclick = () => waitMode ? openWaitSheet() : openVisitSheet();
+document.getElementById("wclose").onclick = () => closeSheet("wsheet");
+document.getElementById("wsend").addEventListener("click", submitWait);
+["w-name","w-tel","w-memo"].forEach(id =>
+  document.getElementById(id).addEventListener("input", renderWaitPreview));
+document.getElementById("wcopy").onclick = async () => {
+  const b = document.getElementById("wcopy");
+  try{ await navigator.clipboard.writeText(buildWaitMessage(waitIssuedNo, waitRank)); b.textContent = "コピーしました"; }
+  catch{ b.textContent = "コピーできませんでした"; }
+  setTimeout(() => b.textContent = "登録書をコピーする", 1800);
+};
 document.getElementById("vclose").onclick = () => closeSheet("vsheet");
 document.getElementById("vsend").addEventListener("click", submitVisit);
 ["v-name","v-memo"].forEach(id =>
