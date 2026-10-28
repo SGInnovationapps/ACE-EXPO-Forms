@@ -106,6 +106,14 @@
     background:#1F7A4D;color:#fff;font-weight:900;font-size:14.5px;text-align:center}
   .xlsx:active{transform:scale(.99)}
   .xlsx[disabled]{opacity:.55}
+  .waitline{margin-top:8px;font-size:12px;color:#6B4E0E;background:#FFF8E6;border-radius:8px;padding:6px 10px;display:inline-block}
+  .pill.wait{background:#FFF1CC;color:#6B4E0E}
+  .pill.off{background:#ECEDEF;color:var(--muted)}
+  .mini.go{border-color:#1F7A4D;color:#1F7A4D}
+  td.btns{white-space:nowrap}
+  tr.done td{background:#F7F8F5;color:var(--muted)}
+  td.btns .mini{margin:2px 2px 2px 0}
+  small.muted{color:var(--muted);font-size:11px}
   .pdfbtn{display:block;width:100%;margin-top:12px;padding:13px;border-radius:12px;
     background:var(--mat);color:#fff;font-weight:900;font-size:14px;text-align:center}
   .pdfbtn:active{transform:scale(.99)}
@@ -305,6 +313,7 @@ function renderVisit(){
           <div class="nums"><b>${used}</b><span>／${s.capacity}名　残り${s.left}</span></div>
         </div>
         <div class="gauge ${s.left <= 0 ? "full" : ""}"><i style="width:${pct}%"></i></div>
+        ${waitLine(s.id)}
         <div class="ages">
           <span class="age">組数<b>${s.groups}</b></span>
           ${v.ageKeys.map(k => `<span class="age">${k}<b>${s.ages[k] || 0}</b></span>`).join("")}
@@ -341,6 +350,7 @@ function renderVisit(){
       <div class="sec-head"><i class="chip"></i><h2>TIME</h2><small>時間帯ごと</small></div>
       ${slots || '<p class="empty">時間帯が設定されていません。</p>'}
     </section>
+    ${renderWaitSection()}
     <section class="sec">
       <div class="sec-head"><i class="chip"></i><h2>LIST</h2><small>予約一覧</small></div>
       <input class="search" id="vsearch" type="search" placeholder="予約番号・お名前で絞り込む">
@@ -355,6 +365,138 @@ function renderVisit(){
 
   bindSearch("vsearch", "vbody");
   bindActions();
+  bindWaitActions();
+}
+
+/* ============================ キャンセル待ち（追加機能） ============================ */
+const WAIT_ALIVE = ["待機中", "連絡済"];
+
+/** 時間帯カードに出す「キャンセル待ち n組」 */
+function waitLine(slotId){
+  const w = DATA.wait; if(!w || !w.slots || !w.slots[slotId] || !w.slots[slotId].groups) return "";
+  const x = w.slots[slotId];
+  return `<p class="waitline">キャンセル待ち <b>${x.groups}組 ${x.people}名</b></p>`;
+}
+
+function renderWaitSection(){
+  const w = DATA.wait;
+  if(!w) return "";                       // 旧GASのときは何も出さない
+  const order = {}; DATA.visit.slots.forEach((s, i) => order[s.id] = i);
+  const alive = w.rows.filter(r => WAIT_ALIVE.includes(r.status))
+    .sort((a, b) => (order[a.slotId] ?? 99) - (order[b.slotId] ?? 99) || a.rank - b.rank);
+  const done = w.rows.filter(r => !WAIT_ALIVE.includes(r.status)).reverse();
+  const ages = r => DATA.visit.ageKeys.map(k => r.ages[k] ? `${k.slice(0,1)}${r.ages[k]}` : "").filter(Boolean).join(" ");
+  const leftOf = id => (w.slots[id] ? w.slots[id].left : "―");
+  const pill = st => ({ "待機中":'<span class="pill no">待機中</span>', "連絡済":'<span class="pill wait">連絡済</span>',
+                        "予約済":'<span class="pill yes">予約済</span>', "辞退":'<span class="pill off">辞退</span>' }[st] || esc(st));
+
+  const row = r => {
+    const live = WAIT_ALIVE.includes(r.status);
+    const btns = live ? `
+        <button class="mini go" data-promote="${esc(r.no)}">予約に振替</button>
+        <button class="mini" data-act="wait" data-no="${esc(r.no)}" data-val="${r.status === "連絡済" ? "待機中" : "連絡済"}">${r.status === "連絡済" ? "待機中に戻す" : "連絡済にする"}</button>
+        <button class="mini warn" data-act="wait" data-no="${esc(r.no)}" data-val="辞退">辞退</button>`
+      : r.status === "辞退"
+        ? `<button class="mini" data-act="wait" data-no="${esc(r.no)}" data-val="待機中">戻す</button>`
+        : `<button class="mini" data-guide="${esc(r.no)}">案内文をコピー</button>`;
+    return `
+    <tr class="${live ? "" : r.status === "辞退" ? "off" : "done"}" data-search="${esc(r.no + r.name + r.slot + r.vno)}">
+      <td class="num">${live ? r.rank : ""}</td>
+      <td class="no">${esc(r.no)}</td>
+      <td>${esc(r.name)}</td>
+      <td>${esc(r.slot)}${live ? `<br><small class="muted">残り${leftOf(r.slotId)}名</small>` : ""}</td>
+      <td class="num">${r.total}</td>
+      <td>${pill(r.status)}${r.vno ? `<br><small class="muted">→ ${esc(r.vno)}</small>` : ""}</td>
+      <td class="btns">${btns}</td>
+      <td>${ages(r)}</td>
+      <td>${esc(r.tel)}</td>
+      <td class="wrapcell">${esc(r.memo)}</td>
+      <td>${r.at}</td>
+    </tr>`;
+  };
+
+  return `
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>WAITLIST</h2><small>キャンセル待ち${w.enabled ? "" : "（受付停止中）"}</small></div>
+      <input class="search" id="wsearch" type="search" placeholder="待ち番号・お名前で絞り込む">
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>順位</th><th>待ち番号</th><th>代表者</th><th>時間帯</th><th>人数</th><th>状況</th><th></th><th>内訳</th><th>電話</th><th>連絡事項</th><th>受付</th></tr></thead>
+          <tbody id="wbody">${alive.map(row).join("")}${done.map(row).join("")}</tbody>
+        </table>
+      </div>
+      ${w.rows.length ? "" : '<p class="empty">キャンセル待ちはありません。</p>'}
+      <p class="hint">席が空いたら：順位1の方から「予約に振替」→ 予約番号が発行され、案内文がコピーされます → 公式LINEでその方に送る。先に意思確認をする場合は、連絡したら「連絡済にする」（順位はそのまま）。不要になった方は「辞退」。</p>
+    </section>`;
+}
+
+/** 振替後に送る案内文 */
+function guideText(r){
+  const c = DATA.config;
+  const s = DATA.visit.slots.find(x => x.id === r.slotId) || {};
+  return [
+    `【キャンセル待ち ご案内】${c.eventEn || "ACE EXPO"}`,
+    `${r.name} 様`,
+    ``,
+    `キャンセル待ち（${r.no}）のお席をご用意できました。`,
+    `予約番号：${r.vno}`,
+    `時間帯：${r.slot}${s.time ? `（${s.time}）` : ""}`,
+    `人数：${r.total}名`,
+    c.eventDate ? `開催日：${c.eventDate}` : "",
+    c.venue ? `会場：${c.venue}` : "",
+    ``,
+    `当日は受付で予約番号をお伝えください。`,
+    `ご都合が悪くなった場合は、このLINEでお知らせください。`
+  ].filter(l => l !== null).join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+async function copyText(t){
+  try{ await navigator.clipboard.writeText(t); return true; }
+  catch(e){
+    const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta);
+    ta.select(); let ok = false; try{ ok = document.execCommand("copy"); }catch(_){}
+    ta.remove(); return ok;
+  }
+}
+
+async function promote(no, force){
+  if(!GAS_URL){ toast("GAS_URL が設定されていません", true); return null; }
+  showBusy("予約に振替えています…");
+  try{
+    const res = await fetchT(GAS_URL, {
+      method:"POST", body: JSON.stringify({ type:"promote", no, force: !!force, key: adminKey() })
+    }, 30000);
+    return await res.json();
+  }catch(e){ return { ok:false, message:"通信に失敗しました。もう一度押してください。" }; }
+  finally{ hideBusy(); }
+}
+
+function bindWaitActions(){
+  bindSearch("wsearch", "wbody");
+  document.querySelectorAll("button[data-promote]").forEach(b => {
+    b.onclick = async () => {
+      const no = b.dataset.promote;
+      const r0 = DATA.wait.rows.find(x => x.no === no);
+      if(!confirm(`${no}（${r0 ? r0.name : ""}・${r0 ? r0.total : ""}名）を来場予約に振替えます。よろしいですか？`)) return;
+      let r = await promote(no, false);
+      if(!r.ok && r.need){
+        if(!confirm(`${r.message}\n定員を超えて振替えますか？`)) return;
+        r = await promote(no, true);
+      }
+      if(!r.ok){ toast(r.message || "振替できませんでした", true); return; }
+      await refresh();
+      const row = DATA.wait.rows.find(x => x.no === no);
+      const copied = row ? await copyText(guideText(row)) : false;
+      toast(`予約番号 ${r.no} を発行しました` + (copied ? "（案内文をコピー済み）" : ""));
+    };
+  });
+  document.querySelectorAll("button[data-guide]").forEach(b => {
+    b.onclick = async () => {
+      const row = DATA.wait.rows.find(x => x.no === b.dataset.guide);
+      if(row && await copyText(guideText(row))) toast("案内文をコピーしました");
+      else toast("コピーできませんでした", true);
+    };
+  });
 }
 
 function renderOrder(){
