@@ -361,6 +361,12 @@ function renderVisit(){
       <div class="sec-head"><i class="chip"></i><h2>TIME</h2><small>時間帯ごと</small></div>
       ${slots || '<p class="empty">時間帯が設定されていません。</p>'}
     </section>
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>ROSTER</h2><small>参加者一覧（当日の受付用）</small></div>
+      <p class="hint" style="margin-top:0">時間帯ごと・予約番号順の一覧です。取消分は除きます。印刷はA4縦、1ページ40組。</p>
+      <button class="xlsx" id="export-roster-xlsx">参加者一覧をExcelで出力する</button>
+      <button class="pdfbtn" id="print-roster">参加者一覧を印刷する（A4縦）</button>
+    </section>
     ${renderWaitSection()}
     <section class="sec">
       <div class="sec-head"><i class="chip"></i><h2>LIST</h2><small>予約一覧</small></div>
@@ -377,6 +383,195 @@ function renderVisit(){
   bindSearch("vsearch", "vbody");
   bindActions();
   bindWaitActions();
+  const rx = document.getElementById("export-roster-xlsx");
+  if(rx) rx.onclick = exportRosterXlsx;
+  const rp = document.getElementById("print-roster");
+  if(rp) rp.onclick = printRoster;
+}
+
+/* ============================ 参加者一覧（当日の受付用） ============================ */
+const ROSTER_PER_PAGE = 40;                 // A4縦 1ページあたりの行数（1行＝1予約）
+const AGE_SHORT = { "大人":"大", "高校生":"高", "中学生":"中", "小学生":"小", "幼稚園以下":"幼" };
+
+/** 時間帯ごと・予約番号の若い順（取消は除く） */
+function rosterBySlot(){
+  const v = DATA.visit;
+  return v.slots.map(s => {
+    const rows = v.rows
+      .filter(r => r.slot === s.label && (r.status || "確定") !== "キャンセル")
+      .sort((a, b) => String(a.no).localeCompare(String(b.no), "ja", { numeric:true }));
+    return { slot:s, rows:rows, groups:rows.length, people:rows.reduce((a,r) => a + r.total, 0) };
+  });
+}
+
+function stampNow(){
+  const n = new Date();
+  return `${n.getFullYear()}/${n.getMonth()+1}/${n.getDate()} ` +
+         `${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`;
+}
+
+/* ---------- 印刷（A4縦・1ページ40組） ---------- */
+function printRoster(){
+  const c = DATA.config, keys = DATA.visit.ageKeys || [];
+  const groups = rosterBySlot();
+  if(!groups.some(g => g.rows.length)){ toast("出力できる予約がありません", true); return; }
+  const stamp = stampNow();
+
+  const pages = [];
+  groups.forEach(g => {
+    const n = Math.max(1, Math.ceil(g.rows.length / ROSTER_PER_PAGE));
+    for(let i = 0; i < n; i++){
+      pages.push({ g:g, page:i+1, pages:n, from:i*ROSTER_PER_PAGE,
+                   rows:g.rows.slice(i*ROSTER_PER_PAGE, (i+1)*ROSTER_PER_PAGE) });
+    }
+  });
+
+  const page = p => {
+    const body = p.rows.map((r, i) => `
+      <tr>
+        <td class="ck"></td><td class="idx">${p.from + i + 1}</td>
+        <td class="no">${esc(r.no)}</td><td class="nm">${esc(r.name)}</td>
+        ${keys.map(k => `<td class="ag">${r.ages[k] || ""}</td>`).join("")}
+        <td class="tt">${r.total}</td><td class="mm">${esc(r.memo)}</td>
+      </tr>`).join("")
+      + Array.from({ length: Math.max(0, ROSTER_PER_PAGE - p.rows.length) }, () =>
+          `<tr><td class="ck"></td><td class="idx"></td><td class="no"></td><td class="nm"></td>${
+            keys.map(() => '<td class="ag"></td>').join("")}<td class="tt"></td><td class="mm"></td></tr>`).join("");
+    return `
+    <section class="sheet">
+      <header>
+        <div><p class="ttl">参加者一覧</p>
+          <p class="ev">${esc(c.eventEn || "ACE EXPO")}${c.eventName ? "　" + esc(c.eventName) : ""}　｜　${esc(c.eventDate || "")}　${esc(c.venue || "")}</p></div>
+        <div class="hr">
+          <p class="slot">${esc(p.g.slot.label)}<small>${esc(p.g.slot.time || "")}</small></p>
+          <p class="cnt">${p.g.groups}組 ${p.g.people}名　<span>${p.page} / ${p.pages}</span></p>
+        </div>
+      </header>
+      <table>
+        <thead><tr>
+          <th class="ck">受付</th><th class="idx">No</th><th class="no">予約番号</th><th class="nm">代表者氏名</th>
+          ${keys.map(k => `<th class="ag">${AGE_SHORT[k] || esc(k)}</th>`).join("")}
+          <th class="tt">計</th><th class="mm">連絡事項</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+      <footer><span>※取消分は除いています。当日受付は「受付」欄にチェック。</span>
+        <span>${esc(c.eventEn || "ACE EXPO")}　出力 ${stamp}</span></footer>
+    </section>`;
+  };
+
+  const css = `
+  @page{size:A4 portrait;margin:0}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#E9EAEC}
+  body{font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;color:#151A26;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .bar{position:sticky;top:0;z-index:2;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;
+    padding:12px;background:#1C2A4E;color:#fff;font-size:13px}
+  .bar button{padding:9px 18px;border:0;border-radius:9px;background:#FFB627;color:#151A26;font-weight:900;font-size:14px;cursor:pointer}
+  .sheet{width:210mm;height:297mm;margin:8mm auto;background:#fff;padding:11mm 12mm 8mm;
+    box-shadow:0 2px 10px rgba(0,0,0,.15);break-after:page;page-break-after:always;display:flex;flex-direction:column}
+  header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2pt solid #151A26;padding-bottom:2mm}
+  .ttl{font-size:16pt;font-weight:900;letter-spacing:.14em}
+  .ev{margin-top:1mm;font-size:8pt;color:#555}
+  .hr{text-align:right}
+  .slot{font-size:13pt;font-weight:900}
+  .slot small{margin-left:2.5mm;font-size:8.5pt;font-weight:500;color:#555}
+  .cnt{margin-top:1mm;font-size:9pt;font-weight:700}
+  .cnt span{display:inline-block;margin-left:2mm;padding:.3mm 2mm;border:.8pt solid #151A26;border-radius:1mm;font-size:8pt}
+  table{width:100%;border-collapse:collapse;margin-top:2.5mm;table-layout:fixed}
+  th{font-size:7.5pt;font-weight:700;background:#EEF0F3;border:.4pt solid #9AA0AA;padding:1mm .5mm;text-align:center}
+  td{border:.4pt solid #C2C7CE;height:6mm;padding:0 1.2mm;font-size:9pt;vertical-align:middle;overflow:hidden;white-space:nowrap}
+  tbody tr:nth-child(even) td{background:#F7F8FA}
+  tbody tr:nth-child(10n) td{border-bottom:.9pt solid #9AA0AA}
+  .ck{width:9mm;background:#fff !important}
+  .idx{width:7mm;text-align:center;font-size:7.5pt;color:#777}
+  .no{width:19mm;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
+  .nm{width:42mm;font-size:9.5pt}
+  .ag{width:8mm;text-align:center;font-variant-numeric:tabular-nums;font-size:8.5pt}
+  th.ag{font-size:7.5pt}
+  .tt{width:9mm;text-align:center;font-weight:900;font-variant-numeric:tabular-nums}
+  .mm{font-size:7.5pt;color:#444}
+  footer{margin-top:auto;padding-top:1.5mm;display:flex;justify-content:space-between;font-size:7pt;color:#777}
+  @media print{ html,body{background:#fff} .bar{display:none} .sheet{margin:0;box-shadow:none} }`;
+
+  const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>${esc(c.eventEn || "ACE EXPO")}_参加者一覧</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>${css}</style></head><body>
+    <div class="bar"><span>A4縦 ${pages.length}枚</span>
+      <button onclick="print()">印刷／PDFに保存</button>
+      <span>PDFにするときは、印刷画面の送信先で「PDFに保存」を選んでください</span></div>
+    ${pages.map(page).join("")}
+    <script>
+      Promise.race([document.fonts.ready, new Promise(ok => setTimeout(ok, 3000))])
+        .then(() => setTimeout(() => print(), 300));
+    <\/script></body></html>`;
+
+  const w = window.open("", "_blank");
+  if(!w){ toast("ポップアップがブロックされました。許可してからもう一度押してください", true); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
+/* ---------- Excel（時間帯ごとにシートを分ける） ---------- */
+function exportRosterXlsx(){
+  if(typeof XLSX === "undefined"){ toast("Excel機能を読み込めませんでした", true); return; }
+  const c = DATA.config, keys = DATA.visit.ageKeys || [];
+  const groups = rosterBySlot();
+  if(!groups.some(g => g.rows.length)){ toast("出力できる予約がありません", true); return; }
+  const stamp = stampNow();
+  const wb = XLSX.utils.book_new();
+  const used = {};
+
+  groups.forEach(g => {
+    const aoa = [
+      ["参加者一覧　" + g.slot.label],
+      [],
+      ["イベント", c.eventName || ""], ["開催日", c.eventDate || ""], ["会場", c.venue || ""],
+      ["時間帯", `${g.slot.label}${g.slot.time ? "（" + g.slot.time + "）" : ""}`],
+      ["組数・人数", `${g.groups}組 ${g.people}名`],
+      ["出力日時", stamp],
+      [],
+      ["No", "予約番号", "代表者氏名", ...keys, "合計", "連絡事項", "受付日時"]
+    ];
+    const head = aoa.length;                        // 見出し行（1始まり）
+    g.rows.forEach((r, i) => aoa.push([
+      i + 1, r.no, r.name, ...keys.map(k => r.ages[k] || 0), r.total, r.memo, r.at
+    ]));
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{wch:5},{wch:11},{wch:20}, ...keys.map(() => ({wch:7})), {wch:7},{wch:34},{wch:12}];
+    ws["!freeze"] = { xSplit:0, ySplit:head };
+    if(g.rows.length) ws["!autofilter"] = { ref: XLSX.utils.encode_range(
+      { s:{ r:head-1, c:0 }, e:{ r:head-1+g.rows.length, c:keys.length + 5 } }) };
+
+    // シート名は31文字まで・重複不可
+    let nm = String(g.slot.label || "時間帯").replace(/[\\\/\?\*\[\]:]/g, "　").slice(0, 28);
+    used[nm] = (used[nm] || 0) + 1;
+    if(used[nm] > 1) nm = nm + used[nm];
+    XLSX.utils.book_append_sheet(wb, ws, nm);
+  });
+
+  // 全体の一覧（時間帯をまたいで確認したいとき用）
+  const all = [["No", "時間帯", "予約番号", "代表者氏名", ...keys, "合計", "連絡事項", "状況", "受付日時"]];
+  let i = 0;
+  groups.forEach(g => g.rows.forEach(r => all.push([
+    ++i, g.slot.label, r.no, r.name, ...keys.map(k => r.ages[k] || 0), r.total, r.memo, r.status || "確定", r.at
+  ])));
+  DATA.visit.rows.filter(r => (r.status || "確定") === "キャンセル").forEach(r => all.push([
+    "", r.slot, r.no, r.name, ...keys.map(k => r.ages[k] || 0), r.total, r.memo, "キャンセル", r.at
+  ]));
+  const wsAll = XLSX.utils.aoa_to_sheet(all);
+  wsAll["!cols"] = [{wch:5},{wch:12},{wch:11},{wch:20}, ...keys.map(() => ({wch:7})), {wch:7},{wch:34},{wch:10},{wch:12}];
+  wsAll["!freeze"] = { xSplit:0, ySplit:1 };
+  wsAll["!autofilter"] = { ref: XLSX.utils.encode_range(
+    { s:{ r:0, c:0 }, e:{ r:all.length - 1, c:keys.length + 7 } }) };
+  XLSX.utils.book_append_sheet(wb, wsAll, "全体（取消含む）");
+
+  const n = new Date();
+  XLSX.writeFile(wb, `ACE-EXPO_参加者一覧_${n.getFullYear()}${String(n.getMonth()+1).padStart(2,"0")}${String(n.getDate()).padStart(2,"0")}.xlsx`);
+  toast("参加者一覧を出力しました");
 }
 
 /* ============================ キャンセル待ち（追加機能） ============================ */
