@@ -62,6 +62,7 @@
   .vsplit td.vn{font-weight:900}
   .vsplit tr.fuwa td{background:#FFF7E3}
   .vsplit tr.ace td{background:#EEF4FF}
+  .vsplit tr.unset td{background:#FDECE8;color:#7A2A17}
   .vtag{display:inline-block;margin-left:6px;padding:0 5px;border-radius:4px;background:#E6F0FF;color:#1C5BC4;font-size:10.5px;font-weight:700}
   h3.subh{margin:18px 0 8px;font-size:13px;font-weight:900}
   h3.subh.ace{color:#1C5BC4}
@@ -125,6 +126,10 @@
   tr.done td{background:#F7F8F5;color:var(--muted)}
   td.btns .mini{margin:2px 2px 2px 0}
   small.muted{color:var(--muted);font-size:11px}
+  .keywarn{margin-top:16px;padding:13px 15px;border-radius:11px;background:#FDECE8;border:1px solid var(--sold);
+    color:#7A2A17;font-size:12.5px;line-height:1.7}
+  .keywarn code{font-family:var(--mono);font-weight:700;background:#fff;border-radius:4px;padding:1px 5px}
+  .hint code{font-family:var(--mono);font-weight:700;background:#fff;border:1px solid var(--hair);border-radius:4px;padding:0 4px}
   .pdfbtn{display:block;width:100%;margin-top:12px;padding:13px;border-radius:12px;
     background:var(--mat);color:#fff;font-weight:900;font-size:14px;text-align:center}
   .pdfbtn:active{transform:scale(.99)}
@@ -215,6 +220,7 @@
   </header>
 
   <main class="wrap">
+    <p class="keywarn" id="keywarn" role="alert" hidden></p>
     <div id="p-visit"></div>
     <div id="p-order" hidden></div>
     <div id="p-config" hidden></div>
@@ -266,7 +272,19 @@ async function load(){
   }
   if(!r.ok) throw new Error(r.message || "読み込みに失敗しました");
   DATA = r.data;
+  KEYLESS = !!r.keyless;
   return true;
+}
+
+/** ADMIN_KEY が未設定＝URLを知っていれば誰でも開ける状態。気づけるように警告を出す */
+let KEYLESS = false;
+function renderKeyWarn(){
+  const el = document.getElementById("keywarn");
+  if(!el) return;
+  el.hidden = !KEYLESS;
+  if(KEYLESS) el.innerHTML = "<b>管理キーが未設定です。</b>" +
+    "このURLを知っていれば誰でも予約・注文を見たり変更できます。" +
+    "GASの「プロジェクトの設定 → スクリプト プロパティ」に <code>ADMIN_KEY</code> を追加してください。";
 }
 
 
@@ -785,6 +803,13 @@ function renderOrder(){
       <div class="sec-head"><i class="chip"></i><h2>SUMMARY</h2><small>注文の集計</small></div>
       ${kpi}
       ${vsplit}
+      ${renderVisitMatch()}
+    </section>
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>PICKUP</h2><small>お渡しリスト（当日のブース用）</small></div>
+      <p class="hint" style="margin-top:0">「注文ログ」の<b>来場</b>列をもとに、来場の時間帯ごと・注文番号順で並べます。来場列が空欄や <code>#N/A</code> の注文は「未確定」にまとめます。取消分は除きます。</p>
+      <button class="xlsx" id="export-pickup-xlsx">お渡しリストをExcelで出力する</button>
+      <button class="pdfbtn" id="print-pickup">お渡しリストを印刷する（A4縦）</button>
     </section>
     <section class="sec">
       <div class="sec-head"><i class="chip"></i><h2>ITEMS</h2><small>発注書（メニュー別の必要数）</small></div>
@@ -810,6 +835,10 @@ function renderOrder(){
   bindActions();
   const xb = document.getElementById("export-xlsx");
   if(xb) xb.onclick = exportXlsx;
+  const px = document.getElementById("export-pickup-xlsx");
+  if(px) px.onclick = exportPickupXlsx;
+  const pp = document.getElementById("print-pickup");
+  if(pp) pp.onclick = printPickup;
 
   const pb = document.getElementById("export-pdf");
   if(pb) pb.onclick = () => {
@@ -853,6 +882,216 @@ function splitOf(o){
   if(o.split) return o.split;
   return { fuwa:{ sales:o.sales, paid:o.paidAmount, unpaid:o.unpaidAmount, items:o.itemCount },
            ace:{ sales:0, paid:0, unpaid:0, items:0 } };
+}
+
+/* ============================ お渡しリスト（来場時間帯別） ============================ */
+const UNSET = "未確定";
+
+/** 来場時間帯ごと・注文番号順（取消は除く）。GASが来場列に未対応なら全件「未確定」 */
+function pickupBySlot(){
+  const o = DATA.order;
+  const labels = (o.byVisit || []).map(b => b.label);
+  if(!labels.length) labels.push("");                 // 旧GAS：時間帯の区別なし
+  return labels.map(lbl => {
+    const rows = o.rows
+      .filter(r => (r.status || "確定") !== "キャンセル" && (r.visit || "") === lbl)
+      .sort((a, b) => String(a.no).localeCompare(String(b.no), "ja", { numeric:true }));
+    return {
+      label: lbl || UNSET, unset: !lbl, rows: rows,
+      orders: rows.length,
+      items: rows.reduce((a,r) => a + r.count, 0),
+      sales: rows.reduce((a,r) => a + r.total, 0),
+      unpaid: rows.filter(r => !r.paid).reduce((a,r) => a + r.total, 0),
+      unpaidCount: rows.filter(r => !r.paid).length
+    };
+  }).filter(g => g.rows.length || !g.unset);          // 「未確定」は0件なら出さない
+}
+
+/** 来場予約と注文の突き合わせ（時間帯ごと） */
+function renderVisitMatch(){
+  const o = DATA.order, v = DATA.visit;
+  if(!o.byVisit) return "";                            // 旧GASのときは出さない
+  const rows = o.byVisit.map(b => {
+    const s = v.slots.find(x => x.label === b.label);
+    return `
+      <tr class="${b.label ? "" : "unset"}">
+        <td class="vn">${b.label ? esc(b.label) : UNSET}</td>
+        <td class="num">${s ? s.groups + "組 " + s.total + "名" : "―"}</td>
+        <td class="num">${b.orders}</td>
+        <td class="num">${b.items}</td>
+        <td class="num">${yen(b.sales)}</td>
+        <td class="num">${b.unpaid ? yen(b.unpaid) : "―"}</td>
+      </tr>`;
+  }).join("");
+  const unset = o.byVisit.find(b => !b.label);
+  return `
+    <div class="tablewrap" style="margin-top:14px">
+      <table class="vsplit">
+        <thead><tr><th>来場の時間帯</th><th>来場予約</th><th>注文件数</th><th>点数</th><th>売上（予定）</th><th>未清算</th></tr></thead>
+        <tbody>${rows}
+          <tr><td class="vn">合計</td><td class="num">${v.groups}組 ${v.total}名</td>
+              <td class="num">${o.count}</td><td class="num">${o.itemCount}</td>
+              <td class="num">${yen(o.sales)}</td><td class="num">${yen(o.unpaidAmount)}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">「来場の時間帯」は「注文ログ」の<b>来場</b>列の値です。${
+      unset && unset.orders ? `<b>未確定が${unset.orders}件</b>あります。来場列を埋めると、その分がどこかの時間帯に移ります。` : "未確定はありません。"}</p>`;
+}
+
+/* ---------- 印刷（A4縦・時間帯ごとにページを変える） ---------- */
+function printPickup(){
+  const c = DATA.config;
+  const groups = pickupBySlot().filter(g => g.rows.length);
+  if(!groups.length){ toast("出力できる注文がありません", true); return; }
+  const stamp = stampNow();
+
+  const section = g => `
+    <section class="part">
+      <header>
+        <div><p class="ttl">お渡しリスト</p>
+          <p class="ev">${esc(c.eventEn || "ACE EXPO")}${c.eventName ? "　" + esc(c.eventName) : ""}　｜　${esc(c.eventDate || "")}　${esc(c.venue || "")}</p></div>
+        <div class="hr">
+          <p class="slot ${g.unset ? "unset" : ""}">${esc(g.label)}</p>
+          <p class="cnt">${g.orders}件 ${g.items}点　${yen(g.sales)}${g.unpaidCount ? `　<b>未清算 ${g.unpaidCount}件</b>` : ""}</p>
+        </div>
+      </header>
+      <table>
+        <thead><tr>
+          <th class="ck">お渡し</th><th class="no">注文番号</th><th class="nm">お名前</th>
+          <th class="qt">点数</th><th class="dt">明細</th><th class="am">金額</th><th class="pd">清算</th>
+        </tr></thead>
+        <tbody>
+          ${g.rows.map(r => `
+            <tr>
+              <td class="ck"></td>
+              <td class="no">${esc(r.no)}</td>
+              <td class="nm">${esc(r.name)}${r.memo ? `<span class="memo">${esc(r.memo)}</span>` : ""}</td>
+              <td class="qt">${r.count}</td>
+              <td class="dt">${esc(r.detail)}${r.ace ? `<span class="aceamt">うちエース ${yen(r.ace)}</span>` : ""}</td>
+              <td class="am">${yen(r.total)}</td>
+              <td class="pd ${r.paid ? "ok" : "ng"}">${r.paid ? "清算済" : "未清算"}</td>
+            </tr>`).join("")}
+          <tr class="sum"><td></td><td></td><td>合計 ${g.orders}件</td>
+              <td class="qt">${g.items}</td><td></td><td class="am">${yen(g.sales)}</td>
+              <td class="pd">${g.unpaidCount ? "未清算 " + g.unpaidCount + "件" : "―"}</td></tr>
+        </tbody>
+      </table>
+      <footer><span>※「未清算」の方はその場で代金をお預かりし、受付で記録してください。渡したら「お渡し」欄にチェック。</span>
+        <span>${esc(c.eventEn || "ACE EXPO")}　出力 ${stamp}</span></footer>
+    </section>`;
+
+  const css = `
+  @page{size:A4 portrait;margin:12mm 11mm}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#E9EAEC}
+  body{font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;color:#151A26;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .bar{position:sticky;top:0;z-index:2;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;
+    padding:12px;background:#1C2A4E;color:#fff;font-size:13px}
+  .bar button{padding:9px 18px;border:0;border-radius:9px;background:#FFB627;color:#151A26;font-weight:900;font-size:14px;cursor:pointer}
+  .part{width:188mm;margin:8mm auto;background:#fff;padding:0 0 4mm;break-after:page;page-break-after:always}
+  header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2pt solid #151A26;padding-bottom:2mm}
+  .ttl{font-size:16pt;font-weight:900;letter-spacing:.14em}
+  .ev{margin-top:1mm;font-size:8pt;color:#555}
+  .hr{text-align:right}
+  .slot{font-size:14pt;font-weight:900}
+  .slot.unset{color:#B4462F}
+  .cnt{margin-top:1mm;font-size:9pt;font-weight:700}
+  .cnt b{color:#B4462F}
+  table{width:100%;border-collapse:collapse;margin-top:2.5mm;table-layout:fixed}
+  thead{display:table-header-group}
+  tr{break-inside:avoid;page-break-inside:avoid}
+  th{font-size:7.5pt;font-weight:700;background:#EEF0F3;border:.4pt solid #9AA0AA;padding:1mm .5mm;text-align:center}
+  td{border:.4pt solid #C2C7CE;padding:1.2mm 1.4mm;font-size:9pt;vertical-align:top}
+  .ck{width:13mm;background:#fff}
+  .no{width:19mm;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
+  .nm{width:36mm;font-size:9.5pt;word-break:break-word}
+  .nm .memo{display:block;margin-top:.6mm;font-size:7pt;color:#8A5A00;line-height:1.4}
+  .qt{width:10mm;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
+  .dt{font-size:8pt;line-height:1.5;word-break:break-word}
+  .dt .aceamt{display:block;margin-top:.6mm;font-size:7pt;color:#1C5BC4}
+  .am{width:18mm;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+  .pd{width:16mm;text-align:center;font-size:8pt;font-weight:700}
+  .pd.ok{color:#1F7A4D}
+  .pd.ng{color:#B4462F;background:#FDECE8}
+  tr.sum td{border-top:1.2pt solid #151A26;font-weight:900;font-size:9.5pt;background:#F7F8FA}
+  tr.sum td.pd{font-size:7.5pt}
+  footer{margin-top:2mm;display:flex;justify-content:space-between;gap:6mm;font-size:7pt;color:#777}
+  @media print{ html,body{background:#fff} .bar{display:none} .part{width:auto;margin:0;padding:0} }`;
+
+  const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>${esc(c.eventEn || "ACE EXPO")}_お渡しリスト</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>${css}</style></head><body>
+    <div class="bar"><span>${groups.map(g => `${g.label} ${g.orders}件`).join("　／　")}</span>
+      <button onclick="print()">印刷／PDFに保存</button>
+      <span>PDFにするときは、印刷画面の送信先で「PDFに保存」を選んでください</span></div>
+    ${groups.map(section).join("")}
+    <script>
+      Promise.race([document.fonts.ready, new Promise(ok => setTimeout(ok, 3000))])
+        .then(() => setTimeout(() => print(), 300));
+    <\/script></body></html>`;
+
+  const w = window.open("", "_blank");
+  if(!w){ toast("ポップアップがブロックされました。許可してからもう一度押してください", true); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
+/* ---------- Excel（時間帯ごとにシートを分ける） ---------- */
+function exportPickupXlsx(){
+  if(typeof XLSX === "undefined"){ toast("Excel機能を読み込めませんでした", true); return; }
+  const c = DATA.config;
+  const groups = pickupBySlot().filter(g => g.rows.length);
+  if(!groups.length){ toast("出力できる注文がありません", true); return; }
+  const stamp = stampNow();
+  const wb = XLSX.utils.book_new(), used = {};
+
+  groups.forEach(g => {
+    const aoa = [
+      ["お渡しリスト　" + g.label], [],
+      ["イベント", c.eventName || ""], ["開催日", c.eventDate || ""], ["会場", c.venue || ""],
+      ["来場の時間帯", g.label],
+      ["件数・点数・金額", `${g.orders}件 ${g.items}点 ${yen(g.sales)}`],
+      ["未清算", g.unpaidCount ? `${g.unpaidCount}件 ${yen(g.unpaid)}` : "なし"],
+      ["出力日時", stamp], [],
+      ["お渡し", "注文番号", "お名前", "電話番号", "点数", "明細", "金額", "うちふわこっぺ", "うちエース", "清算", "受取", "連絡事項"]
+    ];
+    const head = aoa.length;
+    g.rows.forEach(r => aoa.push([
+      "", r.no, r.name, r.tel, r.count, r.detail, r.total,
+      r.fuwa ?? (r.total - (r.ace || 0)), r.ace || 0,
+      r.paid ? "清算済" : "未清算", r.received ? "受取済" : "未受取", r.memo
+    ]));
+    aoa.push(["", "", `合計 ${g.orders}件`, "", g.items, "", g.sales, "", "", "", "", ""]);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{wch:7},{wch:11},{wch:18},{wch:14},{wch:6},{wch:46},{wch:10},{wch:14},{wch:11},{wch:9},{wch:9},{wch:30}];
+    ws["!freeze"] = { xSplit:0, ySplit:head };
+    ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s:{ r:head-1, c:0 }, e:{ r:head-1+g.rows.length, c:11 } }) };
+    let nm = String(g.label).replace(/[\\\/\?\*\[\]:]/g, "　").slice(0, 28);
+    used[nm] = (used[nm] || 0) + 1;
+    if(used[nm] > 1) nm = nm + used[nm];
+    XLSX.utils.book_append_sheet(wb, ws, nm);
+  });
+
+  // 突き合わせシート（来場予約と注文）
+  const v = DATA.visit;
+  const match = [["来場予約と注文の突き合わせ"], [], ["出力日時", stamp], [],
+    ["来場の時間帯", "来場予約（組）", "来場予約（名）", "注文件数", "点数", "売上（予定）", "未清算"]];
+  (DATA.order.byVisit || []).forEach(b => {
+    const s = v.slots.find(x => x.label === b.label);
+    match.push([b.label || UNSET, s ? s.groups : "", s ? s.total : "", b.orders, b.items, b.sales, b.unpaid]);
+  });
+  match.push(["合計", v.groups, v.total, DATA.order.count, DATA.order.itemCount, DATA.order.sales, DATA.order.unpaidAmount]);
+  const wsM = XLSX.utils.aoa_to_sheet(match);
+  wsM["!cols"] = [{wch:16},{wch:14},{wch:14},{wch:10},{wch:8},{wch:13},{wch:13}];
+  XLSX.utils.book_append_sheet(wb, wsM, "突き合わせ");
+
+  const n = new Date();
+  XLSX.writeFile(wb, `ACE-EXPO_お渡しリスト_${n.getFullYear()}${String(n.getMonth()+1).padStart(2,"0")}${String(n.getDate()).padStart(2,"0")}.xlsx`);
+  toast("お渡しリストを出力しました");
 }
 
 /* ---------- 発注書のExcel出力 ---------- */
@@ -1144,6 +1383,7 @@ function toast(msg, bad){
 }
 
 function renderAll(){
+  renderKeyWarn();
   document.getElementById("mark").firstChild.nodeValue = DATA.config.eventEn || "ACE EXPO";
   document.getElementById("mark-sub").textContent = "管理ページ";
   document.getElementById("stamp").textContent = "最終更新 " + (DATA.updatedAt || "");
