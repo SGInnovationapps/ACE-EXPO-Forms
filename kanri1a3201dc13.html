@@ -63,6 +63,13 @@
   .vsplit tr.fuwa td{background:#FFF7E3}
   .vsplit tr.ace td{background:#EEF4FF}
   .vsplit tr.unset td{background:#FDECE8;color:#7A2A17}
+  .mx th.unset{background:#7A2A17}
+  .mx th.num,.mx td.num{text-align:center;width:13%}
+  .mx td:first-child{font-weight:700}
+  .mx td.zero{color:var(--hair)}
+  .mx td.tot{font-weight:900;background:#FAFBF7}
+  .mx tr.ace td:first-child{background:#F6F9FF}
+  .mx tr.sum td{font-weight:900;border-top:2px solid var(--ink);background:#FAFBF7}
   .vtag{display:inline-block;margin-left:6px;padding:0 5px;border-radius:4px;background:#E6F0FF;color:#1C5BC4;font-size:10.5px;font-weight:700}
   h3.subh{margin:18px 0 8px;font-size:13px;font-weight:900}
   h3.subh.ace{color:#1C5BC4}
@@ -771,8 +778,31 @@ function renderOrder(){
       </table>
     </div>`;
   };
+  /* 商品×来場時間帯 */
+  const mx = itemMatrix();
+  const matrix = (!mx.hasVisit || !mx.rows.length) ? "" : `
+    <h3 class="subh">商品別　×　来場の時間帯</h3>
+    <div class="tablewrap">
+      <table class="mx">
+        <thead><tr><th>メニュー</th>${mx.cols.map(l =>
+          `<th class="num ${l ? "" : "unset"}">${esc(mx.label(l))}</th>`).join("")}<th class="num">合計</th></tr></thead>
+        <tbody>
+          ${mx.rows.map(t => `
+            <tr class="${t.ace ? "ace" : ""}">
+              <td>${esc(t.name)}${t.ace ? '<span class="vtag">エース</span>' : ""}</td>
+              ${t.cells.map(n => `<td class="num ${n ? "" : "zero"}">${n || "―"}</td>`).join("")}
+              <td class="num tot">${t.qty}</td>
+            </tr>`).join("")}
+          <tr class="sum"><td>合計</td>${mx.colTotal.map(n =>
+            `<td class="num">${n}</td>`).join("")}<td class="num tot">${mx.total}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">各時間帯に用意する個数です。「未確定」は「注文ログ」の<b>来場</b>列が空欄・<code>#N/A</code>の注文です。取消分は含みません。</p>`;
+
   const tFuwa = o.tally.filter(t => !t.ace), tAce = o.tally.filter(t => t.ace);
   const tally = o.tally.length ? `
+    ${matrix}
     <h3 class="subh">ふわこっぺ</h3>
     ${tFuwa.length ? tallyTable(tFuwa, "ふわこっぺ 計") : '<p class="empty">注文はありません。</p>'}
     <h3 class="subh ace">エース体操クラブ販売</h3>
@@ -887,6 +917,30 @@ function splitOf(o){
 /* ============================ お渡しリスト（来場時間帯別） ============================ */
 const UNSET = "未確定";
 
+/**
+ * 商品×来場時間帯の個数表のもとデータ。
+ * 列は「時間帯の並び順 → 未確定（0でなければ）」。行は ふわこっぺ → エース体操クラブ の順。
+ */
+function itemMatrix(){
+  const o = DATA.order;
+  const all = (o.byVisit || []).map(b => b.label);
+  if(!all.length) all.push("");
+  const rows = (o.tally || []).filter(t => t.qty || t.vq)
+    .slice().sort((a, b) => (a.ace ? 1 : 0) - (b.ace ? 1 : 0));
+  // 中身のある列だけ残す（未確定は0件なら出さない）
+  const cols = all.filter(l => l || rows.some(t => (t.vq || {})[""]));
+  const cell = (t, l) => (t.vq || {})[l] || 0;
+  return {
+    cols: cols,
+    label: l => l || UNSET,
+    rows: rows.map(t => ({ name:t.name, price:t.price, ace:!!t.ace, qty:t.qty,
+                           cells: cols.map(l => cell(t, l)) })),
+    colTotal: cols.map(l => rows.reduce((a,t) => a + cell(t, l), 0)),
+    total: rows.reduce((a,t) => a + t.qty, 0),
+    hasVisit: !!o.byVisit
+  };
+}
+
 /** 来場時間帯ごと・注文番号順（取消は除く）。GASが来場列に未対応なら全件「未確定」 */
 function pickupBySlot(){
   const o = DATA.order;
@@ -939,12 +993,58 @@ function renderVisitMatch(){
       unset && unset.orders ? `<b>未確定が${unset.orders}件</b>あります。来場列を埋めると、その分がどこかの時間帯に移ります。` : "未確定はありません。"}</p>`;
 }
 
+/** 商品×時間帯のシートを作る（Excel共通） */
+function matrixSheet(stamp){
+  const c = DATA.config, mx = itemMatrix();
+  if(!mx.hasVisit || !mx.rows.length) return null;
+  const aoa = [
+    ["商品別　×　来場の時間帯（個数）"], [],
+    ["イベント", c.eventName || ""], ["開催日", c.eventDate || ""], ["出力日時", stamp], [],
+    ["メニュー", "販売元", ...mx.cols.map(l => mx.label(l)), "合計", "単価", "金額"]
+  ];
+  mx.rows.forEach(t => aoa.push([
+    t.name, t.ace ? "エース体操クラブ" : "ふわこっぺ", ...t.cells, t.qty, t.price || "", t.price ? t.price * t.qty : ""
+  ]));
+  aoa.push(["合計", "", ...mx.colTotal, mx.total, "", ""]);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{wch:24},{wch:17}, ...mx.cols.map(() => ({wch:10})), {wch:8},{wch:8},{wch:11}];
+  ws["!freeze"] = { xSplit:2, ySplit:7 };
+  return ws;
+}
+
 /* ---------- 印刷（A4縦・時間帯ごとにページを変える） ---------- */
 function printPickup(){
   const c = DATA.config;
   const groups = pickupBySlot().filter(g => g.rows.length);
   if(!groups.length){ toast("出力できる注文がありません", true); return; }
   const stamp = stampNow();
+
+  const mx = itemMatrix();
+  const prep = (!mx.hasVisit || !mx.rows.length) ? "" : `
+    <section class="part">
+      <header>
+        <div><p class="ttl">準備表</p>
+          <p class="ev">${esc(c.eventEn || "ACE EXPO")}${c.eventName ? "　" + esc(c.eventName) : ""}　｜　${esc(c.eventDate || "")}　${esc(c.venue || "")}</p></div>
+        <div class="hr"><p class="slot">商品別 × 時間帯</p>
+          <p class="cnt">全${mx.total}点</p></div>
+      </header>
+      <table class="mx">
+        <thead><tr><th class="mn">メニュー</th>${mx.cols.map(l =>
+          `<th class="q ${l ? "" : "unset"}">${esc(mx.label(l))}</th>`).join("")}<th class="q tt">合計</th></tr></thead>
+        <tbody>
+          ${mx.rows.map(t => `
+            <tr class="${t.ace ? "ace" : ""}">
+              <td class="mn">${esc(t.name)}${t.ace ? '<span class="vd">エース体操クラブ</span>' : ""}</td>
+              ${t.cells.map(n => `<td class="q ${n ? "" : "zero"}">${n || "―"}</td>`).join("")}
+              <td class="q tt">${t.qty}</td>
+            </tr>`).join("")}
+          <tr class="sum"><td class="mn">合計</td>${mx.colTotal.map(n =>
+            `<td class="q">${n}</td>`).join("")}<td class="q tt">${mx.total}</td></tr>
+        </tbody>
+      </table>
+      <footer><span>※取消分は除いています。「未確定」は来場の時間帯が未記入の注文です。</span>
+        <span>${esc(c.eventEn || "ACE EXPO")}　出力 ${stamp}</span></footer>
+    </section>`;
 
   const section = g => `
     <section class="part">
@@ -1016,6 +1116,15 @@ function printPickup(){
   .pd.ok{color:#1F7A4D}
   .pd.ng{color:#B4462F;background:#FDECE8}
   tr.sum td{border-top:1.2pt solid #151A26;font-weight:900;font-size:9.5pt;background:#F7F8FA}
+  table.mx{table-layout:auto}
+  .mx th.q,.mx td.q{width:22mm;text-align:center;font-variant-numeric:tabular-nums;font-size:11pt;font-weight:700}
+  .mx th.unset{background:#F7E3DE;color:#7A2A17}
+  .mx td.q.zero{color:#C2C7CE;font-weight:400}
+  .mx .tt{background:#F2F3F5}
+  .mx td.mn{font-size:11pt;font-weight:700;padding:2mm 2mm}
+  .mx td.mn .vd{display:block;margin-top:.5mm;font-size:7pt;font-weight:500;color:#1C5BC4}
+  .mx tr.ace td.mn{background:#F6F9FF}
+  .mx tr.sum td{font-size:11pt}
   tr.sum td.pd{font-size:7.5pt}
   footer{margin-top:2mm;display:flex;justify-content:space-between;gap:6mm;font-size:7pt;color:#777}
   @media print{ html,body{background:#fff} .bar{display:none} .part{width:auto;margin:0;padding:0} }`;
@@ -1028,8 +1137,8 @@ function printPickup(){
     <style>${css}</style></head><body>
     <div class="bar"><span>${groups.map(g => `${g.label} ${g.orders}件`).join("　／　")}</span>
       <button onclick="print()">印刷／PDFに保存</button>
-      <span>PDFにするときは、印刷画面の送信先で「PDFに保存」を選んでください</span></div>
-    ${groups.map(section).join("")}
+      <span>1枚目は商品別の準備表です。PDFにするときは、印刷画面の送信先で「PDFに保存」を選んでください</span></div>
+    ${prep}${groups.map(section).join("")}
     <script>
       Promise.race([document.fonts.ready, new Promise(ok => setTimeout(ok, 3000))])
         .then(() => setTimeout(() => print(), 300));
@@ -1075,6 +1184,9 @@ function exportPickupXlsx(){
     if(used[nm] > 1) nm = nm + used[nm];
     XLSX.utils.book_append_sheet(wb, ws, nm);
   });
+
+  const wsMx = matrixSheet(stamp);
+  if(wsMx) XLSX.utils.book_append_sheet(wb, wsMx, "商品別×時間帯");
 
   // 突き合わせシート（来場予約と注文）
   const v = DATA.visit;
@@ -1169,6 +1281,8 @@ function exportXlsx(){
   ws2["!autofilter"] = { ref: `A1:L${list.length}` };
 
   const wb = XLSX.utils.book_new();
+  const wsMx2 = matrixSheet(stamp);
+  if(wsMx2) XLSX.utils.book_append_sheet(wb, wsMx2, "商品別×時間帯");
   XLSX.utils.book_append_sheet(wb, ws0,    "精算（販売元別）");
   XLSX.utils.book_append_sheet(wb, wsFuwa, "ふわこっぺ発注書");
   XLSX.utils.book_append_sheet(wb, wsAce,  "エース体操クラブ");
