@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ACE EXPO｜管理ページ</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="description" content="ACE EXPO管理ページ">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Roboto:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --chalk:#F2F3EF; --paper:#FFFFFF; --ink:#131A2B;
+    --mat:#1C2A4E; --score:#FFB627; --line:#06C755;
+    --muted:#7C8598; --hair:#E2E3DE; --sold:#B4462F; --ok:#1F7A4D;
+    --display:"Oswald",sans-serif;
+    --jp:"Zen Kaku Gothic New",sans-serif;
+    --mono:"Roboto","Zen Kaku Gothic New",sans-serif;   /* 0に斜線が入らない書体 */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{background:var(--chalk);color:var(--ink);font-family:var(--jp);line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    font-feature-settings:"tnum" 1;padding-bottom:60px}
+  button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+  :focus-visible{outline:3px solid var(--mat);outline-offset:2px}
+  :root{--maxw:760px}
+  @media (min-width:1000px){ :root{--maxw:1280px} }
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 20px}
+
+  /* header */
+  .top{position:sticky;top:0;z-index:30;background:var(--mat);color:#fff}
+  .top-in{max-width:var(--maxw);margin:0 auto;padding:13px 20px;display:flex;
+    align-items:center;justify-content:space-between;gap:14px}
+  .mark{font-family:var(--display);font-weight:700;font-size:20px;letter-spacing:.06em;line-height:1.15}
+  .mark span{display:block;font-family:var(--jp);font-size:10px;font-weight:500;
+    letter-spacing:.16em;color:#8FA0C4;margin-top:3px}
+  .reload{background:var(--score);color:var(--ink);font-weight:900;font-size:12.5px;
+    padding:9px 14px;border-radius:999px;flex:none}
+  .reload[disabled]{opacity:.55}
+  .tabs{background:var(--mat);border-top:1px solid rgba(255,255,255,.12)}
+  .tabs-in{max-width:var(--maxw);margin:0 auto;padding:0 20px;display:flex;gap:22px}
+  .tab{padding:11px 0 9px;font-size:13px;font-weight:700;color:#8FA0C4;
+    border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab[aria-selected="true"]{color:#fff;border-bottom-color:var(--score)}
+  .stamp{font-size:10.5px;color:#8FA0C4;text-align:right;padding:6px 20px 0;max-width:var(--maxw);margin:0 auto}
+
+  /* cards */
+  .sec{margin-top:26px}
+  .sec-head{display:flex;align-items:center;gap:11px;padding-bottom:9px;border-bottom:2px solid var(--ink)}
+  .chip{width:13px;height:13px;background:var(--score);flex:none;border-radius:2px}
+  .sec-head h2{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.14em}
+  .sec-head small{font-size:11.5px;color:var(--muted);font-weight:500}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px}
+  .kpi{background:var(--paper);border:1px solid var(--hair);border-radius:12px;padding:14px 15px}
+  .kpi .l{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.04em}
+  .kpi .v{font-family:var(--mono);font-weight:700;font-size:25px;line-height:1.3;
+    font-variant-numeric:tabular-nums;margin-top:3px}
+  .kpi .s{font-size:11px;color:var(--muted)}
+  .vsplit td.vn{font-weight:900}
+  .vsplit tr.fuwa td{background:#FFF7E3}
+  .vsplit tr.ace td{background:#EEF4FF}
+  .vsplit tr.unset td{background:#FDECE8;color:#7A2A17}
+  .mx th.unset{background:#7A2A17}
+  .mx th.num,.mx td.num{text-align:center;width:13%}
+  .mx td:first-child{font-weight:700}
+  .mx td.zero{color:var(--hair)}
+  .mx td.tot{font-weight:900;background:#FAFBF7}
+  .mx tr.ace td:first-child{background:#F6F9FF}
+  .mx tr.sum td{font-weight:900;border-top:2px solid var(--ink);background:#FAFBF7}
+  .vtag{display:inline-block;margin-left:6px;padding:0 5px;border-radius:4px;background:#E6F0FF;color:#1C5BC4;font-size:10.5px;font-weight:700}
+  h3.subh{margin:18px 0 8px;font-size:13px;font-weight:900}
+  h3.subh.ace{color:#1C5BC4}
+  .kpi.alert{border-color:var(--sold);background:#FDECE8}
+  .kpi.alert .v,.kpi.alert .l{color:var(--sold)}
+
+  .slotcard{background:var(--paper);border:1px solid var(--hair);border-radius:13px;
+    padding:16px;margin-top:12px}
+  .slotcard .row1{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+  .slotcard h3{font-size:16px;font-weight:900}
+  .slotcard .time{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px}
+  .slotcard .nums{font-family:var(--mono);font-weight:700;text-align:right;flex:none}
+  .slotcard .nums b{font-size:22px}
+  .slotcard .nums span{font-size:11px;color:var(--muted);display:block}
+  .gauge{height:9px;border-radius:99px;background:#E7E8E3;margin-top:12px;overflow:hidden}
+  .gauge i{display:block;height:100%;background:var(--mat);border-radius:99px}
+  .gauge.full i{background:var(--sold)}
+  .ages{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+  .age{font-size:11.5px;background:var(--chalk);border-radius:7px;padding:5px 9px;font-weight:700}
+  .age b{font-family:var(--mono);margin-left:4px}
+
+  /* table */
+  .tablewrap{margin-top:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    border:1px solid var(--hair);border-radius:12px;background:var(--paper)}
+  table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+  th{background:var(--mat);color:#fff;font-size:11px;font-weight:700;letter-spacing:.04em;
+    padding:9px 11px;text-align:left;position:sticky;top:0}
+  td{padding:10px 11px;border-top:1px solid var(--hair);vertical-align:middle}
+  td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right}
+  td.no{font-family:var(--mono);font-weight:700}
+  tr.off{opacity:.45}
+  tr.off td.no{text-decoration:line-through}
+  .wrapcell{white-space:normal;min-width:190px;font-size:12px;color:#39415A}
+  /* 一覧をPC幅に収めるための詰め */
+  td .sub{display:block;margin-top:2px;font-size:10.5px;color:var(--muted);font-family:var(--jp);font-weight:500}
+  td .memo-s{display:block;margin-top:3px;max-width:240px;white-space:normal;font-size:11px;line-height:1.45;color:#8A5A00}
+  td.acts{white-space:normal;min-width:190px}
+  td.acts .mini{margin:2px 2px 2px 0}
+  @media (min-width:1000px){
+    th{padding:9px 8px} td{padding:9px 8px}
+    .wrapcell{min-width:170px}
+  }
+
+  .pill{font-size:11px;font-weight:700;border-radius:6px;padding:3px 7px;border:1px solid currentColor}
+  .pill.no{color:var(--sold)}
+  .pill.yes{color:var(--ok)}
+  .mini{font-size:11.5px;font-weight:700;border:1px solid var(--mat);border-radius:8px;
+    padding:6px 10px;background:var(--paper);white-space:nowrap}
+  .mini.warn{border-color:var(--sold);color:var(--sold)}
+  .mini[disabled]{opacity:.45}
+
+  .xlsx{display:block;width:100%;margin-top:14px;padding:14px;border-radius:12px;
+    background:#1F7A4D;color:#fff;font-weight:900;font-size:14.5px;text-align:center}
+  .xlsx:active{transform:scale(.99)}
+  .xlsx[disabled]{opacity:.55}
+  .waitline{margin-top:8px;font-size:12px;color:#6B4E0E;background:#FFF8E6;border-radius:8px;padding:6px 10px;display:inline-block}
+  .pill.wait{background:#FFF1CC;color:#6B4E0E}
+  .pill.off{background:#ECEDEF;color:var(--muted)}
+  .mini.go{border-color:#1F7A4D;color:#1F7A4D}
+  td.btns{white-space:nowrap}
+  tr.done td{background:#F7F8F5;color:var(--muted)}
+  td.btns .mini{margin:2px 2px 2px 0}
+  small.muted{color:var(--muted);font-size:11px}
+  .keywarn{margin-top:16px;padding:13px 15px;border-radius:11px;background:#FDECE8;border:1px solid var(--sold);
+    color:#7A2A17;font-size:12.5px;line-height:1.7}
+  .keywarn code{font-family:var(--mono);font-weight:700;background:#fff;border-radius:4px;padding:1px 5px}
+  .hint code{font-family:var(--mono);font-weight:700;background:#fff;border:1px solid var(--hair);border-radius:4px;padding:0 4px}
+  .pdfbtn{display:block;width:100%;margin-top:12px;padding:13px;border-radius:12px;
+    background:var(--mat);color:#fff;font-weight:900;font-size:14px;text-align:center}
+  .pdfbtn:active{transform:scale(.99)}
+  .search{width:100%;margin-top:14px;padding:12px 14px;border:1px solid var(--hair);
+    border-radius:11px;background:var(--paper);font-size:16px;font-family:var(--jp)}
+  .empty{padding:26px;text-align:center;color:var(--muted);font-size:12.5px}
+
+  /* settings */
+  .setrow{background:var(--paper);border:1px solid var(--hair);border-radius:11px;
+    padding:13px 15px;margin-top:9px}
+  .setrow dt{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.04em}
+  .setrow dd{font-size:14px;margin-top:3px;word-break:break-word}
+  .hint{margin-top:16px;font-size:12px;color:#4C5468;background:#FFF6E2;border-radius:10px;padding:12px 14px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(140%);
+    background:var(--ink);color:#fff;font-size:13px;font-weight:700;padding:12px 20px;
+    border-radius:999px;z-index:80;transition:transform .25s;white-space:nowrap}
+  .toast.on{transform:translateX(-50%) translateY(0)}
+  .toast.bad{background:var(--sold)}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+  @media print{
+    .top,.tabs,.search,.mini,.reload{display:none!important}
+    body{background:#fff;padding:0}
+  }
+
+  /* ---- 処理中オーバーレイ（書き込み中は全操作をブロック） ---- */
+  .busy{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;
+    background:rgba(19,26,43,.62);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+    overscroll-behavior:contain;touch-action:none}
+  .busy.on{display:flex;animation:busyIn .2s .15s both}   /* 一瞬で終わる処理ではチラつかせない */
+  .busy-card{background:var(--paper);border-radius:16px;padding:26px 30px;min-width:220px;max-width:calc(100vw - 48px);
+    text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.28)}
+  .busy-spin{width:42px;height:42px;margin:0 auto 14px;border-radius:50%;
+    border:4px solid var(--hair);border-top-color:var(--score);animation:busySpin .8s linear infinite}
+  .busy-msg{font-size:15px;font-weight:900;color:var(--ink)}
+  .busy-sub{font-size:12px;color:var(--muted);margin-top:4px}
+  @keyframes busySpin{to{transform:rotate(360deg)}}
+  @keyframes busyIn{from{opacity:0}to{opacity:1}}
+  @media (prefers-reduced-motion:reduce){.busy-spin{animation-duration:2.4s}.busy.on{animation:none}}
+
+  /* ---- 読み込み失敗画面（サンプルは表示しない） ---- */
+  .loaderr{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;
+    background:var(--chalk);padding:24px}
+  .loaderr.on{display:flex}
+  .loaderr-card{background:var(--paper);border:1px solid var(--hair);border-radius:16px;padding:28px 24px;
+    max-width:380px;width:100%;text-align:center}
+  .loaderr h2{font-size:17px;font-weight:900;color:var(--ink)}
+  .loaderr button{margin-top:18px;width:100%;min-height:50px;border:0;border-radius:12px;cursor:pointer;
+    background:var(--score);color:var(--ink);font-family:var(--jp);font-weight:900;font-size:16px}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+
+<!-- ===== 読み込み失敗画面 ===== -->
+<div class="loaderr" id="loaderr" role="alert">
+  <div class="loaderr-card">
+    <h2>読み込めませんでした</h2>
+    <button type="button" id="loaderr-retry">更新</button>
+  </div>
+</div>
+
+<!-- ===== 処理中オーバーレイ ===== -->
+<div class="busy" id="busy" role="alertdialog" aria-modal="true" aria-live="assertive" aria-labelledby="busy-msg">
+  <div class="busy-card">
+    <div class="busy-spin" aria-hidden="true"></div>
+    <p class="busy-msg" id="busy-msg">処理しています…</p>
+    <p class="busy-sub">そのままお待ちください</p>
+  </div>
+</div>
+
+<!-- ===== 本体 ===== -->
+<div id="app">
+  <header class="top">
+    <div class="top-in">
+      <div class="mark" id="mark">ACE EXPO<span id="mark-sub">管理ページ</span></div>
+      <button class="reload" id="reload">更新</button>
+    </div>
+    <div class="tabs">
+      <div class="tabs-in" role="tablist">
+        <button class="tab" id="t-visit" role="tab" aria-selected="true">来場予約</button>
+        <button class="tab" id="t-order" role="tab" aria-selected="false">ふわこっぺ</button>
+        <button class="tab" id="t-config" role="tab" aria-selected="false">設定</button>
+      </div>
+    </div>
+    <p class="stamp" id="stamp"></p>
+  </header>
+
+  <main class="wrap">
+    <p class="keywarn" id="keywarn" role="alert" hidden></p>
+    <div id="p-visit"></div>
+    <div id="p-order" hidden></div>
+    <div id="p-config" hidden></div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================================
+   ACE EXPO 管理ページ
+   GAS_URL は申込ページと同じ /exec URL を貼ってください。
+   GAS のスクリプトプロパティに ADMIN_KEY を設定すると、初回に管理キーを聞かれます。
+   （入力したキーはこの端末に保存されます。未設定なら従来どおりキーなしで開けます）
+   ========================================================================= */
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwwj-7s7ZtKnaPFG7IZnedg57mWKueImwus48gmqfoiNrc_CS8ou2AmHp-1r3Db_yT-3w/exec";   // ← GASの /exec URL を貼る
+
+let DATA = null;
+
+const yen = n => "¥" + Number(n || 0).toLocaleString("ja-JP");
+const esc = s => String(s == null ? "" : s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+/* ---------- 管理キー ---------- */
+const KEY_STORE = "aceexpo_admin_key";
+const adminKey = () => { try{ return localStorage.getItem(KEY_STORE) || ""; }catch(e){ return ""; } };
+
+
+/* ---------- 通信 ---------- */
+/** タイムアウト付きfetch（AbortSignalは使わない：プレビュー環境などで "could not be cloned" になるため） */
+function fetchT(url, opts, ms){
+  let timer;
+  const timeout = new Promise((_, ng) => {
+    timer = setTimeout(() => { const e = new Error("timeout"); e.name = "AbortError"; ng(e); }, ms);
+  });
+  return Promise.race([fetch(url, opts), timeout]).finally(() => clearTimeout(timer));
+}
+
+async function load(){
+  if(!GAS_URL) throw new Error("GAS_URL が設定されていません");
+  const res = await fetchT(`${GAS_URL}?mode=admin&key=${encodeURIComponent(adminKey())}`, { cache:"no-store" }, 20000);
+  if(!res.ok) throw new Error("HTTP " + res.status);
+  const r = await res.json();
+  if(!r.ok && r.error === "auth"){
+    const k = prompt("管理キーを入力してください");
+    if(!k) throw new Error("管理キーが必要です");
+    try{ localStorage.setItem(KEY_STORE, k); }catch(e){}
+    return load();
+  }
+  if(!r.ok) throw new Error(r.message || "読み込みに失敗しました");
+  DATA = r.data;
+  KEYLESS = !!r.keyless;
+  return true;
+}
+
+/** ADMIN_KEY が未設定＝URLを知っていれば誰でも開ける状態。気づけるように警告を出す */
+let KEYLESS = false;
+function renderKeyWarn(){
+  const el = document.getElementById("keywarn");
+  if(!el) return;
+  el.hidden = !KEYLESS;
+  if(KEYLESS) el.innerHTML = "<b>管理キーが未設定です。</b>" +
+    "このURLを知っていれば誰でも予約・注文を見たり変更できます。" +
+    "GASの「プロジェクトの設定 → スクリプト プロパティ」に <code>ADMIN_KEY</code> を追加してください。";
+}
+
+
+/* ---------- 処理中オーバーレイ（書き込み中は操作を受け付けない） ---------- */
+let busyDepth = 0;
+const busyBlock = e => { e.preventDefault(); e.stopPropagation(); };
+function showBusy(msg){
+  if(++busyDepth > 1){ document.getElementById("busy-msg").textContent = msg || "処理しています…"; return; }
+  document.getElementById("busy-msg").textContent = msg || "処理しています…";
+  document.getElementById("busy").classList.add("on");
+  try{ if(document.activeElement) document.activeElement.blur(); }catch(e){}
+  ["keydown","keypress","keyup"].forEach(t => document.addEventListener(t, busyBlock, true));
+}
+function hideBusy(){
+  if(busyDepth === 0 || --busyDepth > 0) return;
+  document.getElementById("busy").classList.remove("on");
+  ["keydown","keypress","keyup"].forEach(t => document.removeEventListener(t, busyBlock, true));
+}
+window.addEventListener("pageshow", () => { busyDepth = 1; hideBusy(); });   // LINEから戻ったときに残らないように
+
+async function update(target, no, value){
+  if(!GAS_URL){ toast("GAS_URL が設定されていません", true); return false; }
+  showBusy("保存しています…");
+  try{
+    const res = await fetchT(GAS_URL, {
+      method:"POST",
+      body: JSON.stringify({ type:"update", target, no, value, key: adminKey() })
+    }, 30000);
+    const r = await res.json();
+    if(!r.ok){ toast(r.message || "更新できませんでした", true); return false; }
+    return true;
+  }finally{ hideBusy(); }
+}
+
+/* ---------- 画面 ---------- */
+function renderVisit(){
+  const v = DATA.visit;
+  const cap = v.slots.reduce((a,s) => a + s.capacity, 0);
+
+  const kpi = `
+    <div class="kpis">
+      <div class="kpi"><p class="l">予約人数</p><p class="v">${v.total}</p><p class="s">定員 ${cap} 名</p></div>
+      <div class="kpi"><p class="l">予約組数</p><p class="v">${v.groups}</p><p class="s">組</p></div>
+      <div class="kpi"><p class="l">空き</p><p class="v">${Math.max(0, cap - v.total)}</p><p class="s">名</p></div>
+      <div class="kpi"><p class="l">取消</p><p class="v">${v.cancelled}</p><p class="s">件</p></div>
+    </div>`;
+
+  const slots = v.slots.map(s => {
+    const used = s.capacity - s.left;
+    const pct = s.capacity ? Math.min(100, Math.round(used / s.capacity * 100)) : 0;
+    return `
+      <div class="slotcard">
+        <div class="row1">
+          <div><h3>${esc(s.label)}</h3><p class="time">${esc(s.time || "")}</p></div>
+          <div class="nums"><b>${used}</b><span>／${s.capacity}名　残り${s.left}</span></div>
+        </div>
+        <div class="gauge ${s.left <= 0 ? "full" : ""}"><i style="width:${pct}%"></i></div>
+        ${waitLine(s.id)}
+        <div class="ages">
+          <span class="age">組数<b>${s.groups}</b></span>
+          ${v.ageKeys.map(k => `<span class="age">${k}<b>${s.ages[k] || 0}</b></span>`).join("")}
+        </div>
+      </div>`;
+  }).join("");
+
+  const ages = `
+    <div class="ages" style="margin-top:14px">
+      ${v.ageKeys.map(k => `<span class="age">${k}<b>${v.ageTotals[k] || 0}</b></span>`).join("")}
+    </div>`;
+
+  const rows = v.rows.map(r => `
+    <tr class="${r.status === "キャンセル" ? "off" : ""}" data-search="${esc(r.no + r.name + r.slot)}">
+      <td class="no">${esc(r.no)}</td>
+      <td>${esc(r.name)}</td>
+      <td>${esc(r.slot)}</td>
+      <td class="num">${r.total}</td>
+      <td>${v.ageKeys.map(k => r.ages[k] ? `${k.slice(0,1)}${r.ages[k]}` : "").filter(Boolean).join(" ")}</td>
+      <td class="wrapcell">${esc(r.memo)}</td>
+      <td>${r.at}</td>
+      <td><button class="mini ${r.status === "キャンセル" ? "" : "warn"}"
+            data-act="visit" data-no="${esc(r.no)}"
+            data-val="${r.status === "キャンセル" ? "確定" : "キャンセル"}">
+            ${r.status === "キャンセル" ? "戻す" : "取消"}</button></td>
+    </tr>`).join("");
+
+  document.getElementById("p-visit").innerHTML = `
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>SUMMARY</h2><small>来場予約の集計</small></div>
+      ${kpi}${ages}
+    </section>
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>TIME</h2><small>時間帯ごと</small></div>
+      ${slots || '<p class="empty">時間帯が設定されていません。</p>'}
+    </section>
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>ROSTER</h2><small>参加者一覧（当日の受付用）</small></div>
+      <p class="hint" style="margin-top:0">時間帯ごと・予約番号順の一覧です。取消分は除きます。印刷はA4縦、1ページ40組。</p>
+      <button class="xlsx" id="export-roster-xlsx">参加者一覧をExcelで出力する</button>
+      <button class="pdfbtn" id="print-roster">参加者一覧を印刷する（A4縦）</button>
+    </section>
+    ${renderWaitSection()}
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>LIST</h2><small>予約一覧</small></div>
+      <input class="search" id="vsearch" type="search" placeholder="予約番号・お名前で絞り込む">
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>予約番号</th><th>代表者</th><th>時間帯</th><th>人数</th><th>内訳</th><th>連絡事項</th><th>受付</th><th></th></tr></thead>
+          <tbody id="vbody">${rows}</tbody>
+        </table>
+      </div>
+      ${v.rows.length ? "" : '<p class="empty">まだ予約はありません。</p>'}
+    </section>`;
+
+  bindSearch("vsearch", "vbody");
+  bindActions();
+  bindWaitActions();
+  const rx = document.getElementById("export-roster-xlsx");
+  if(rx) rx.onclick = exportRosterXlsx;
+  const rp = document.getElementById("print-roster");
+  if(rp) rp.onclick = printRoster;
+}
+
+/* ============================ 参加者一覧（当日の受付用） ============================ */
+const ROSTER_PER_PAGE = 40;                 // A4縦 1ページあたりの行数（1行＝1予約）
+const AGE_SHORT = { "大人":"大", "高校生":"高", "中学生":"中", "小学生":"小", "幼稚園以下":"幼" };
+
+/** 時間帯ごと・予約番号の若い順（取消は除く） */
+function rosterBySlot(){
+  const v = DATA.visit;
+  return v.slots.map(s => {
+    const rows = v.rows
+      .filter(r => r.slot === s.label && (r.status || "確定") !== "キャンセル")
+      .sort((a, b) => String(a.no).localeCompare(String(b.no), "ja", { numeric:true }));
+    return { slot:s, rows:rows, groups:rows.length, people:rows.reduce((a,r) => a + r.total, 0) };
+  });
+}
+
+function stampNow(){
+  const n = new Date();
+  return `${n.getFullYear()}/${n.getMonth()+1}/${n.getDate()} ` +
+         `${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`;
+}
+
+/* ---------- 印刷（A4縦・1ページ40組） ---------- */
+function printRoster(){
+  const c = DATA.config, keys = DATA.visit.ageKeys || [];
+  const groups = rosterBySlot();
+  if(!groups.some(g => g.rows.length)){ toast("出力できる予約がありません", true); return; }
+  const stamp = stampNow();
+
+  const pages = [];
+  groups.forEach(g => {
+    const n = Math.max(1, Math.ceil(g.rows.length / ROSTER_PER_PAGE));
+    for(let i = 0; i < n; i++){
+      pages.push({ g:g, page:i+1, pages:n, from:i*ROSTER_PER_PAGE,
+                   rows:g.rows.slice(i*ROSTER_PER_PAGE, (i+1)*ROSTER_PER_PAGE) });
+    }
+  });
+
+  const page = p => {
+    const body = p.rows.map((r, i) => `
+      <tr>
+        <td class="ck"></td><td class="idx">${p.from + i + 1}</td>
+        <td class="no">${esc(r.no)}</td><td class="nm">${esc(r.name)}</td>
+        ${keys.map(k => `<td class="ag">${r.ages[k] || ""}</td>`).join("")}
+        <td class="tt">${r.total}</td><td class="mm">${esc(r.memo)}</td>
+      </tr>`).join("")
+      + Array.from({ length: Math.max(0, ROSTER_PER_PAGE - p.rows.length) }, () =>
+          `<tr><td class="ck"></td><td class="idx"></td><td class="no"></td><td class="nm"></td>${
+            keys.map(() => '<td class="ag"></td>').join("")}<td class="tt"></td><td class="mm"></td></tr>`).join("");
+    return `
+    <section class="sheet">
+      <header>
+        <div><p class="ttl">参加者一覧</p>
+          <p class="ev">${esc(c.eventEn || "ACE EXPO")}${c.eventName ? "　" + esc(c.eventName) : ""}　｜　${esc(c.eventDate || "")}　${esc(c.venue || "")}</p></div>
+        <div class="hr">
+          <p class="slot">${esc(p.g.slot.label)}<small>${esc(p.g.slot.time || "")}</small></p>
+          <p class="cnt">${p.g.groups}組 ${p.g.people}名　<span>${p.page} / ${p.pages}</span></p>
+        </div>
+      </header>
+      <table>
+        <thead><tr>
+          <th class="ck">受付</th><th class="idx">No</th><th class="no">予約番号</th><th class="nm">代表者氏名</th>
+          ${keys.map(k => `<th class="ag">${AGE_SHORT[k] || esc(k)}</th>`).join("")}
+          <th class="tt">計</th><th class="mm">連絡事項</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+      <footer><span>※取消分は除いています。当日受付は「受付」欄にチェック。</span>
+        <span>${esc(c.eventEn || "ACE EXPO")}　出力 ${stamp}</span></footer>
+    </section>`;
+  };
+
+  const css = `
+  @page{size:A4 portrait;margin:0}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#E9EAEC}
+  body{font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;color:#151A26;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .bar{position:sticky;top:0;z-index:2;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;
+    padding:12px;background:#1C2A4E;color:#fff;font-size:13px}
+  .bar button{padding:9px 18px;border:0;border-radius:9px;background:#FFB627;color:#151A26;font-weight:900;font-size:14px;cursor:pointer}
+  .sheet{width:210mm;height:297mm;margin:8mm auto;background:#fff;padding:11mm 12mm 8mm;
+    box-shadow:0 2px 10px rgba(0,0,0,.15);break-after:page;page-break-after:always;display:flex;flex-direction:column}
+  header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2pt solid #151A26;padding-bottom:2mm}
+  .ttl{font-size:16pt;font-weight:900;letter-spacing:.14em}
+  .ev{margin-top:1mm;font-size:8pt;color:#555}
+  .hr{text-align:right}
+  .slot{font-size:13pt;font-weight:900}
+  .slot small{margin-left:2.5mm;font-size:8.5pt;font-weight:500;color:#555}
+  .cnt{margin-top:1mm;font-size:9pt;font-weight:700}
+  .cnt span{display:inline-block;margin-left:2mm;padding:.3mm 2mm;border:.8pt solid #151A26;border-radius:1mm;font-size:8pt}
+  table{width:100%;border-collapse:collapse;margin-top:2.5mm;table-layout:fixed}
+  th{font-size:7.5pt;font-weight:700;background:#EEF0F3;border:.4pt solid #9AA0AA;padding:1mm .5mm;text-align:center}
+  td{border:.4pt solid #C2C7CE;height:6mm;padding:0 1.2mm;font-size:9pt;vertical-align:middle;overflow:hidden;white-space:nowrap}
+  tbody tr:nth-child(even) td{background:#F7F8FA}
+  tbody tr:nth-child(10n) td{border-bottom:.9pt solid #9AA0AA}
+  .ck{width:9mm;background:#fff !important}
+  .idx{width:7mm;text-align:center;font-size:7.5pt;color:#777}
+  .no{width:19mm;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
+  .nm{width:42mm;font-size:9.5pt}
+  .ag{width:8mm;text-align:center;font-variant-numeric:tabular-nums;font-size:8.5pt}
+  th.ag{font-size:7.5pt}
+  .tt{width:9mm;text-align:center;font-weight:900;font-variant-numeric:tabular-nums}
+  .mm{font-size:7.5pt;color:#444}
+  footer{margin-top:auto;padding-top:1.5mm;display:flex;justify-content:space-between;font-size:7pt;color:#777}
+  @media print{ html,body{background:#fff} .bar{display:none} .sheet{margin:0;box-shadow:none} }`;
+
+  const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>${esc(c.eventEn || "ACE EXPO")}_参加者一覧</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>${css}</style></head><body>
+    <div class="bar"><span>A4縦 ${pages.length}枚</span>
+      <button onclick="print()">印刷／PDFに保存</button>
+      <span>PDFにするときは、印刷画面の送信先で「PDFに保存」を選んでください</span></div>
+    ${pages.map(page).join("")}
+    <script>
+      Promise.race([document.fonts.ready, new Promise(ok => setTimeout(ok, 3000))])
+        .then(() => setTimeout(() => print(), 300));
+    <\/script></body></html>`;
+
+  const w = window.open("", "_blank");
+  if(!w){ toast("ポップアップがブロックされました。許可してからもう一度押してください", true); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
+/* ---------- Excel（時間帯ごとにシートを分ける） ---------- */
+function exportRosterXlsx(){
+  if(typeof XLSX === "undefined"){ toast("Excel機能を読み込めませんでした", true); return; }
+  const c = DATA.config, keys = DATA.visit.ageKeys || [];
+  const groups = rosterBySlot();
+  if(!groups.some(g => g.rows.length)){ toast("出力できる予約がありません", true); return; }
+  const stamp = stampNow();
+  const wb = XLSX.utils.book_new();
+  const used = {};
+
+  groups.forEach(g => {
+    const aoa = [
+      ["参加者一覧　" + g.slot.label],
+      [],
+      ["イベント", c.eventName || ""], ["開催日", c.eventDate || ""], ["会場", c.venue || ""],
+      ["時間帯", `${g.slot.label}${g.slot.time ? "（" + g.slot.time + "）" : ""}`],
+      ["組数・人数", `${g.groups}組 ${g.people}名`],
+      ["出力日時", stamp],
+      [],
+      ["No", "予約番号", "代表者氏名", ...keys, "合計", "連絡事項", "受付日時"]
+    ];
+    const head = aoa.length;                        // 見出し行（1始まり）
+    g.rows.forEach((r, i) => aoa.push([
+      i + 1, r.no, r.name, ...keys.map(k => r.ages[k] || 0), r.total, r.memo, r.at
+    ]));
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{wch:5},{wch:11},{wch:20}, ...keys.map(() => ({wch:7})), {wch:7},{wch:34},{wch:12}];
+    ws["!freeze"] = { xSplit:0, ySplit:head };
+    if(g.rows.length) ws["!autofilter"] = { ref: XLSX.utils.encode_range(
+      { s:{ r:head-1, c:0 }, e:{ r:head-1+g.rows.length, c:keys.length + 5 } }) };
+
+    // シート名は31文字まで・重複不可
+    let nm = String(g.slot.label || "時間帯").replace(/[\\\/\?\*\[\]:]/g, "　").slice(0, 28);
+    used[nm] = (used[nm] || 0) + 1;
+    if(used[nm] > 1) nm = nm + used[nm];
+    XLSX.utils.book_append_sheet(wb, ws, nm);
+  });
+
+  // 全体の一覧（時間帯をまたいで確認したいとき用）
+  const all = [["No", "時間帯", "予約番号", "代表者氏名", ...keys, "合計", "連絡事項", "状況", "受付日時"]];
+  let i = 0;
+  groups.forEach(g => g.rows.forEach(r => all.push([
+    ++i, g.slot.label, r.no, r.name, ...keys.map(k => r.ages[k] || 0), r.total, r.memo, r.status || "確定", r.at
+  ])));
+  DATA.visit.rows.filter(r => (r.status || "確定") === "キャンセル").forEach(r => all.push([
+    "", r.slot, r.no, r.name, ...keys.map(k => r.ages[k] || 0), r.total, r.memo, "キャンセル", r.at
+  ]));
+  const wsAll = XLSX.utils.aoa_to_sheet(all);
+  wsAll["!cols"] = [{wch:5},{wch:12},{wch:11},{wch:20}, ...keys.map(() => ({wch:7})), {wch:7},{wch:34},{wch:10},{wch:12}];
+  wsAll["!freeze"] = { xSplit:0, ySplit:1 };
+  wsAll["!autofilter"] = { ref: XLSX.utils.encode_range(
+    { s:{ r:0, c:0 }, e:{ r:all.length - 1, c:keys.length + 7 } }) };
+  XLSX.utils.book_append_sheet(wb, wsAll, "全体（取消含む）");
+
+  const n = new Date();
+  XLSX.writeFile(wb, `ACE-EXPO_参加者一覧_${n.getFullYear()}${String(n.getMonth()+1).padStart(2,"0")}${String(n.getDate()).padStart(2,"0")}.xlsx`);
+  toast("参加者一覧を出力しました");
+}
+
+/* ============================ キャンセル待ち（追加機能） ============================ */
+const WAIT_ALIVE = ["待機中", "連絡済"];
+
+/** 時間帯カードに出す「キャンセル待ち n組」 */
+function waitLine(slotId){
+  const w = DATA.wait; if(!w || !w.slots || !w.slots[slotId] || !w.slots[slotId].groups) return "";
+  const x = w.slots[slotId];
+  return `<p class="waitline">キャンセル待ち <b>${x.groups}組 ${x.people}名</b></p>`;
+}
+
+function renderWaitSection(){
+  const w = DATA.wait;
+  if(!w) return "";                       // 旧GASのときは何も出さない
+  const order = {}; DATA.visit.slots.forEach((s, i) => order[s.id] = i);
+  const alive = w.rows.filter(r => WAIT_ALIVE.includes(r.status))
+    .sort((a, b) => (order[a.slotId] ?? 99) - (order[b.slotId] ?? 99) || a.rank - b.rank);
+  const done = w.rows.filter(r => !WAIT_ALIVE.includes(r.status)).reverse();
+  const ages = r => DATA.visit.ageKeys.map(k => r.ages[k] ? `${k.slice(0,1)}${r.ages[k]}` : "").filter(Boolean).join(" ");
+  const leftOf = id => (w.slots[id] ? w.slots[id].left : "―");
+  const pill = st => ({ "待機中":'<span class="pill no">待機中</span>', "連絡済":'<span class="pill wait">連絡済</span>',
+                        "予約済":'<span class="pill yes">予約済</span>', "辞退":'<span class="pill off">辞退</span>' }[st] || esc(st));
+
+  const row = r => {
+    const live = WAIT_ALIVE.includes(r.status);
+    const btns = live ? `
+        <button class="mini go" data-promote="${esc(r.no)}">予約に振替</button>
+        <button class="mini" data-act="wait" data-no="${esc(r.no)}" data-val="${r.status === "連絡済" ? "待機中" : "連絡済"}">${r.status === "連絡済" ? "待機中に戻す" : "連絡済にする"}</button>
+        <button class="mini warn" data-act="wait" data-no="${esc(r.no)}" data-val="辞退">辞退</button>`
+      : r.status === "辞退"
+        ? `<button class="mini" data-act="wait" data-no="${esc(r.no)}" data-val="待機中">戻す</button>`
+        : `<button class="mini" data-guide="${esc(r.no)}">案内文をコピー</button>`;
+    return `
+    <tr class="${live ? "" : r.status === "辞退" ? "off" : "done"}" data-search="${esc(r.no + r.name + r.slot + r.vno)}">
+      <td class="num">${live ? r.rank : ""}</td>
+      <td class="no">${esc(r.no)}</td>
+      <td>${esc(r.name)}${r.tel ? `<span class="sub">TEL ${esc(r.tel)}</span>` : ""}${r.memo ? `<span class="memo-s">連絡：${esc(r.memo)}</span>` : ""}</td>
+      <td>${esc(r.slot)}${live ? `<br><small class="muted">残り${leftOf(r.slotId)}名</small>` : ""}</td>
+      <td class="num">${r.total}<span class="sub">${ages(r)}</span></td>
+      <td>${pill(r.status)}${r.vno ? `<br><small class="muted">→ ${esc(r.vno)}</small>` : ""}</td>
+      <td class="btns">${btns}</td>
+      <td>${r.at}</td>
+    </tr>`;
+  };
+
+  return `
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>WAITLIST</h2><small>キャンセル待ち${w.enabled ? "" : "（受付停止中）"}</small></div>
+      <input class="search" id="wsearch" type="search" placeholder="待ち番号・お名前で絞り込む">
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>順位</th><th>待ち番号</th><th>代表者・連絡事項</th><th>時間帯</th><th>人数</th><th>状況</th><th>操作</th><th>受付</th></tr></thead>
+          <tbody id="wbody">${alive.map(row).join("")}${done.map(row).join("")}</tbody>
+        </table>
+      </div>
+      ${w.rows.length ? "" : '<p class="empty">キャンセル待ちはありません。</p>'}
+      <p class="hint">席が空いたら：順位1の方から「予約に振替」→ 予約番号が発行され、案内文がコピーされます → 公式LINEでその方に送る。先に意思確認をする場合は、連絡したら「連絡済にする」（順位はそのまま）。不要になった方は「辞退」。</p>
+    </section>`;
+}
+
+/** 振替後に送る案内文 */
+function guideText(r){
+  const c = DATA.config;
+  const s = DATA.visit.slots.find(x => x.id === r.slotId) || {};
+  return [
+    `【キャンセル待ち ご案内】${c.eventEn || "ACE EXPO"}`,
+    `${r.name} 様`,
+    ``,
+    `キャンセル待ち（${r.no}）のお席をご用意できました。`,
+    `予約番号：${r.vno}`,
+    `時間帯：${r.slot}${s.time ? `（${s.time}）` : ""}`,
+    `人数：${r.total}名`,
+    c.eventDate ? `開催日：${c.eventDate}` : "",
+    c.venue ? `会場：${c.venue}` : "",
+    ``,
+    `当日は受付で予約番号をお伝えください。`,
+    `ご都合が悪くなった場合は、このLINEでお知らせください。`
+  ].filter(l => l !== null).join("\n").replace(/\n{3,}/g, "\n\n");
+}
+
+async function copyText(t){
+  try{ await navigator.clipboard.writeText(t); return true; }
+  catch(e){
+    const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta);
+    ta.select(); let ok = false; try{ ok = document.execCommand("copy"); }catch(_){}
+    ta.remove(); return ok;
+  }
+}
+
+async function promote(no, force){
+  if(!GAS_URL){ toast("GAS_URL が設定されていません", true); return null; }
+  showBusy("予約に振替えています…");
+  try{
+    const res = await fetchT(GAS_URL, {
+      method:"POST", body: JSON.stringify({ type:"promote", no, force: !!force, key: adminKey() })
+    }, 30000);
+    return await res.json();
+  }catch(e){ return { ok:false, message:"通信に失敗しました。もう一度押してください。" }; }
+  finally{ hideBusy(); }
+}
+
+function bindWaitActions(){
+  bindSearch("wsearch", "wbody");
+  document.querySelectorAll("button[data-promote]").forEach(b => {
+    b.onclick = async () => {
+      const no = b.dataset.promote;
+      const r0 = DATA.wait.rows.find(x => x.no === no);
+      if(!confirm(`${no}（${r0 ? r0.name : ""}・${r0 ? r0.total : ""}名）を来場予約に振替えます。よろしいですか？`)) return;
+      let r = await promote(no, false);
+      if(!r.ok && r.need){
+        if(!confirm(`${r.message}\n定員を超えて振替えますか？`)) return;
+        r = await promote(no, true);
+      }
+      if(!r.ok){ toast(r.message || "振替できませんでした", true); return; }
+      await refresh();
+      const row = DATA.wait.rows.find(x => x.no === no);
+      const copied = row ? await copyText(guideText(row)) : false;
+      toast(`予約番号 ${r.no} を発行しました` + (copied ? "（案内文をコピー済み）" : ""));
+    };
+  });
+  document.querySelectorAll("button[data-guide]").forEach(b => {
+    b.onclick = async () => {
+      const row = DATA.wait.rows.find(x => x.no === b.dataset.guide);
+      if(row && await copyText(guideText(row))) toast("案内文をコピーしました");
+      else toast("コピーできませんでした", true);
+    };
+  });
+}
+
+function renderOrder(){
+  const o = DATA.order;
+
+  const kpi = `
+    <div class="kpis">
+      <div class="kpi"><p class="l">注文件数</p><p class="v">${o.count}</p><p class="s">件 ／ ${o.itemCount}点</p></div>
+      <div class="kpi"><p class="l">売上（予定）</p><p class="v" style="font-size:21px">${yen(o.sales)}</p><p class="s">全注文の合計</p></div>
+      <div class="kpi"><p class="l">清算済</p><p class="v">${o.paidCount}</p><p class="s">${yen(o.paidAmount)}</p></div>
+      <div class="kpi ${o.unpaidCount ? "alert" : ""}"><p class="l">未清算</p><p class="v">${o.unpaidCount}</p><p class="s">${yen(o.unpaidAmount)}</p></div>
+      <div class="kpi"><p class="l">未受取</p><p class="v">${o.notReceived}</p><p class="s">件</p></div>
+      <div class="kpi"><p class="l">取消</p><p class="v">${o.cancelled || 0}</p><p class="s">件</p></div>
+    </div>`;
+
+  /* 販売元別の精算（ふわこっぺ / エース体操クラブ） */
+  const sp = splitOf(o);
+  const vsplit = `
+    <div class="tablewrap" style="margin-top:14px">
+      <table class="vsplit">
+        <thead><tr><th>販売元</th><th>点数</th><th>売上（予定）</th><th>清算済</th><th>未清算</th></tr></thead>
+        <tbody>
+          <tr class="fuwa"><td class="vn">ふわこっぺ</td><td class="num">${sp.fuwa.items}</td>
+            <td class="num">${yen(sp.fuwa.sales)}</td><td class="num" style="font-weight:900">${yen(sp.fuwa.paid)}</td>
+            <td class="num">${yen(sp.fuwa.unpaid)}</td></tr>
+          <tr class="ace"><td class="vn">エース体操クラブ</td><td class="num">${sp.ace.items}</td>
+            <td class="num">${yen(sp.ace.sales)}</td><td class="num">${yen(sp.ace.paid)}</td>
+            <td class="num">${yen(sp.ace.unpaid)}</td></tr>
+          <tr><td class="vn">合計</td><td class="num">${o.itemCount}</td><td class="num">${yen(o.sales)}</td>
+            <td class="num">${yen(o.paidAmount)}</td><td class="num">${yen(o.unpaidAmount)}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">ふわこっぺへの入金額は「ふわこっぺ」行の金額です（清算済＝受付で受け取り済みの分、売上（予定）＝取消を除く全注文の分）。</p>`;
+
+  const tallyTable = (list, label) => {
+    const qty = list.reduce((a, t) => a + t.qty, 0), amt = list.reduce((a, t) => a + t.amount, 0);
+    return `
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>メニュー</th><th>個数</th><th>単価</th><th>金額</th></tr></thead>
+        <tbody>
+          ${list.map(t => `
+            <tr><td>${esc(t.name)}</td><td class="num">${t.qty}</td>
+                <td class="num">${t.price ? yen(t.price) : "―"}</td>
+                <td class="num">${t.amount ? yen(t.amount) : "―"}</td></tr>`).join("")}
+          <tr><td style="font-weight:900">${label}</td>
+              <td class="num" style="font-weight:900">${qty}</td><td></td>
+              <td class="num" style="font-weight:900">${yen(amt)}</td></tr>
+        </tbody>
+      </table>
+    </div>`;
+  };
+  /* 商品×来場時間帯 */
+  const mx = itemMatrix();
+  const matrix = (!mx.hasVisit || !mx.rows.length) ? "" : `
+    <h3 class="subh">商品別　×　来場の時間帯</h3>
+    <div class="tablewrap">
+      <table class="mx">
+        <thead><tr><th>メニュー</th>${mx.cols.map(l =>
+          `<th class="num ${l ? "" : "unset"}">${esc(mx.label(l))}</th>`).join("")}<th class="num">合計</th></tr></thead>
+        <tbody>
+          ${mx.rows.map(t => `
+            <tr class="${t.ace ? "ace" : ""}">
+              <td>${esc(t.name)}${t.ace ? '<span class="vtag">エース</span>' : ""}</td>
+              ${t.cells.map(n => `<td class="num ${n ? "" : "zero"}">${n || "―"}</td>`).join("")}
+              <td class="num tot">${t.qty}</td>
+            </tr>`).join("")}
+          <tr class="sum"><td>合計</td>${mx.colTotal.map(n =>
+            `<td class="num">${n}</td>`).join("")}<td class="num tot">${mx.total}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">各時間帯に用意する個数です。「未確定」は「注文ログ」の<b>来場</b>列が空欄・<code>#N/A</code>の注文です。取消分は含みません。</p>`;
+
+  const tFuwa = o.tally.filter(t => !t.ace), tAce = o.tally.filter(t => t.ace);
+  const tally = o.tally.length ? `
+    ${matrix}
+    <h3 class="subh">ふわこっぺ</h3>
+    ${tFuwa.length ? tallyTable(tFuwa, "ふわこっぺ 計") : '<p class="empty">注文はありません。</p>'}
+    <h3 class="subh ace">エース体操クラブ販売</h3>
+    ${tAce.length ? tallyTable(tAce, "エース体操クラブ 計") : '<p class="empty">注文はありません。</p>'}`
+    : '<p class="empty">まだ注文はありません。</p>';
+
+  const rows = o.rows.map(r => {
+    const dead = (r.status || "確定") === "キャンセル";
+    return `
+    <tr class="${dead ? "off" : ""}" data-search="${esc(r.no + r.name + r.tel + r.memo)}">
+      <td class="no">${esc(r.no)}</td>
+      <td>${esc(r.name)}${r.tel ? `<span class="sub">TEL ${esc(r.tel)}</span>` : ""}${r.memo ? `<span class="memo-s">連絡：${esc(r.memo)}</span>` : ""}</td>
+      <td class="num">${r.count}</td>
+      <td class="num">${yen(r.total)}${r.ace ? `<span class="sub">ふわこっぺ ${yen(r.fuwa ?? r.total - r.ace)}</span><span class="sub">エース ${yen(r.ace)}</span>` : ""}</td>
+      <td class="wrapcell">${esc(r.detail)}</td>
+      <td>${dead ? '<span class="pill no">取消済</span>'
+                 : `<span class="pill ${r.paid ? "yes" : "no"}">${r.paid ? "清算済" : "未清算"}</span>`}${r.received && !dead ? '<span class="sub">受取済</span>' : ""}</td>
+      <td class="acts">${dead ? "" : `<button class="mini ${r.paid ? "" : "warn"}" data-act="pay" data-no="${esc(r.no)}"
+            data-val="${r.paid ? "未払" : "支払済"}">${r.paid ? "未清算に戻す" : "清算済にする"}</button><button class="mini" data-act="receive" data-no="${esc(r.no)}"
+            data-val="${r.received ? "未受取" : "受取済"}">${r.received ? "受取を戻す" : "受取済にする"}</button>`}<button class="mini ${dead ? "" : "warn"}" data-act="order" data-no="${esc(r.no)}"
+            data-val="${dead ? "確定" : "キャンセル"}">${dead ? "取消を戻す" : "注文取消"}</button>${dead ? "" : `<button class="mini" data-doc="${esc(r.no)}">PDF</button>`}</td>
+      <td>${r.at}</td>
+    </tr>`;
+  }).join("");
+
+  document.getElementById("p-order").innerHTML = `
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>SUMMARY</h2><small>注文の集計</small></div>
+      ${kpi}
+      ${vsplit}
+      ${renderVisitMatch()}
+    </section>
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>PICKUP</h2><small>お渡しリスト（当日のブース用）</small></div>
+      <p class="hint" style="margin-top:0">「注文ログ」の<b>来場</b>列をもとに、来場の時間帯ごと・注文番号順で並べます。来場列が空欄や <code>#N/A</code> の注文は「未確定」にまとめます。取消分は除きます。</p>
+      <button class="xlsx" id="export-pickup-xlsx">お渡しリストをExcelで出力する</button>
+      <button class="pdfbtn" id="print-pickup">お渡しリストを印刷する（A4縦）</button>
+    </section>
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>ITEMS</h2><small>発注書（メニュー別の必要数）</small></div>
+      <button class="xlsx" id="export-xlsx">発注書・精算表をExcelで出力する</button>
+      ${tally}
+    </section>
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>LIST</h2><small>注文一覧</small></div>
+      <input class="search" id="osearch" type="search" placeholder="注文番号・お名前で絞り込む">
+      <button class="pdfbtn" id="export-pdf">注文書・領収書をPDFで出力する（表示中の注文）</button>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>注文番号</th><th>お名前・連絡事項</th><th>点数</th><th>金額</th><th>明細</th><th>清算</th><th>操作</th><th>受付</th></tr></thead>
+          <tbody id="obody">${rows}</tbody>
+        </table>
+      </div>
+      ${o.rows.length ? "" : '<p class="empty">まだ注文はありません。</p>'}
+      <p class="hint">受付での流れ：注文番号で絞り込む →　金額を確認 →　「清算済にする」を押す。商品を渡したら「受取済にする」。</p>
+      <p class="hint">PDF：上の青いボタンは、絞り込みで表示中の注文（取消を除く）をまとめて出力します。1件だけなら各行の「PDF」。A4の上半分が注文書、下半分が領収書です（点線で切り離し）。印刷画面の送信先で「PDFに保存」を選ぶとPDFになります。</p>
+    </section>`;
+
+  bindSearch("osearch", "obody");
+  bindActions();
+  const xb = document.getElementById("export-xlsx");
+  if(xb) xb.onclick = exportXlsx;
+  const px = document.getElementById("export-pickup-xlsx");
+  if(px) px.onclick = exportPickupXlsx;
+  const pp = document.getElementById("print-pickup");
+  if(pp) pp.onclick = printPickup;
+
+  const pb = document.getElementById("export-pdf");
+  if(pb) pb.onclick = () => {
+    // 絞り込みで表示中の行だけ（取消は除く）
+    const shown = new Set([...document.querySelectorAll("#obody tr")]
+      .filter(tr => tr.style.display !== "none").map(tr => tr.querySelector(".no")?.textContent));
+    const list = o.rows.filter(r => shown.has(r.no) && (r.status || "確定") !== "キャンセル");
+    if(!list.length){ toast("出力できる注文がありません", true); return; }
+    openOrderDocs(list);
+  };
+  document.querySelectorAll("button[data-doc]").forEach(b => {
+    b.onclick = () => {
+      const r = o.rows.find(x => x.no === b.dataset.doc);
+      if(r) openOrderDocs([r]);
+    };
+  });
+}
+
+function renderConfig(){
+  const c = DATA.config;
+  const rows = [
+    ["イベント名（英字）", c.eventEn],
+    ["主催", c.eventName],
+    ["開催日", c.eventDate],
+    ["会場", c.venue],
+    ["公式LINE ID", c.lineId],
+    ["来場予約タブの説明文", c.visitLead],
+    ["注文タブの説明文", c.orderLead],
+    ["注文の支払い案内", c.orderNote]
+  ];
+  document.getElementById("p-config").innerHTML = `
+    <section class="sec">
+      <div class="sec-head"><i class="chip"></i><h2>CONFIG</h2><small>現在の設定</small></div>
+      ${rows.map(r => `<dl class="setrow"><dt>${esc(r[0])}</dt><dd>${esc(r[1]) || "<span style='color:var(--muted)'>未設定</span>"}</dd></dl>`).join("")}
+      <p class="hint">これらはスプレッドシートの「設定」シートで変更します。変更後は、スプレッドシート上部のメニュー「ACE EXPO → 変更をすぐ反映する」を押すと、申込ページにすぐ反映されます。時間帯・定員は「時間帯」シート、メニューは「メニュー」シートです。</p>
+    </section>`;
+}
+
+/** 販売元別の集計（古いGASで split が無い場合は全額ふわこっぺとして扱う） */
+function splitOf(o){
+  if(o.split) return o.split;
+  return { fuwa:{ sales:o.sales, paid:o.paidAmount, unpaid:o.unpaidAmount, items:o.itemCount },
+           ace:{ sales:0, paid:0, unpaid:0, items:0 } };
+}
+
+/* ============================ お渡しリスト（来場時間帯別） ============================ */
+const UNSET = "未確定";
+
+/**
+ * 商品×来場時間帯の個数表のもとデータ。
+ * 列は「時間帯の並び順 → 未確定（0でなければ）」。行は ふわこっぺ → エース体操クラブ の順。
+ */
+function itemMatrix(){
+  const o = DATA.order;
+  const all = (o.byVisit || []).map(b => b.label);
+  if(!all.length) all.push("");
+  const rows = (o.tally || []).filter(t => t.qty || t.vq)
+    .slice().sort((a, b) => (a.ace ? 1 : 0) - (b.ace ? 1 : 0));
+  // 中身のある列だけ残す（未確定は0件なら出さない）
+  const cols = all.filter(l => l || rows.some(t => (t.vq || {})[""]));
+  const cell = (t, l) => (t.vq || {})[l] || 0;
+  return {
+    cols: cols,
+    label: l => l || UNSET,
+    rows: rows.map(t => ({ name:t.name, price:t.price, ace:!!t.ace, qty:t.qty,
+                           cells: cols.map(l => cell(t, l)) })),
+    colTotal: cols.map(l => rows.reduce((a,t) => a + cell(t, l), 0)),
+    total: rows.reduce((a,t) => a + t.qty, 0),
+    hasVisit: !!o.byVisit
+  };
+}
+
+/** 来場時間帯ごと・注文番号順（取消は除く）。GASが来場列に未対応なら全件「未確定」 */
+function pickupBySlot(){
+  const o = DATA.order;
+  const labels = (o.byVisit || []).map(b => b.label);
+  if(!labels.length) labels.push("");                 // 旧GAS：時間帯の区別なし
+  return labels.map(lbl => {
+    const rows = o.rows
+      .filter(r => (r.status || "確定") !== "キャンセル" && (r.visit || "") === lbl)
+      .sort((a, b) => String(a.no).localeCompare(String(b.no), "ja", { numeric:true }));
+    return {
+      label: lbl || UNSET, unset: !lbl, rows: rows,
+      orders: rows.length,
+      items: rows.reduce((a,r) => a + r.count, 0),
+      sales: rows.reduce((a,r) => a + r.total, 0),
+      unpaid: rows.filter(r => !r.paid).reduce((a,r) => a + r.total, 0),
+      unpaidCount: rows.filter(r => !r.paid).length
+    };
+  }).filter(g => g.rows.length || !g.unset);          // 「未確定」は0件なら出さない
+}
+
+/** 来場予約と注文の突き合わせ（時間帯ごと） */
+function renderVisitMatch(){
+  const o = DATA.order, v = DATA.visit;
+  if(!o.byVisit) return "";                            // 旧GASのときは出さない
+  const rows = o.byVisit.map(b => {
+    const s = v.slots.find(x => x.label === b.label);
+    return `
+      <tr class="${b.label ? "" : "unset"}">
+        <td class="vn">${b.label ? esc(b.label) : UNSET}</td>
+        <td class="num">${s ? s.groups + "組 " + s.total + "名" : "―"}</td>
+        <td class="num">${b.orders}</td>
+        <td class="num">${b.items}</td>
+        <td class="num">${yen(b.sales)}</td>
+        <td class="num">${b.unpaid ? yen(b.unpaid) : "―"}</td>
+      </tr>`;
+  }).join("");
+  const unset = o.byVisit.find(b => !b.label);
+  return `
+    <div class="tablewrap" style="margin-top:14px">
+      <table class="vsplit">
+        <thead><tr><th>来場の時間帯</th><th>来場予約</th><th>注文件数</th><th>点数</th><th>売上（予定）</th><th>未清算</th></tr></thead>
+        <tbody>${rows}
+          <tr><td class="vn">合計</td><td class="num">${v.groups}組 ${v.total}名</td>
+              <td class="num">${o.count}</td><td class="num">${o.itemCount}</td>
+              <td class="num">${yen(o.sales)}</td><td class="num">${yen(o.unpaidAmount)}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">「来場の時間帯」は「注文ログ」の<b>来場</b>列の値です。${
+      unset && unset.orders ? `<b>未確定が${unset.orders}件</b>あります。来場列を埋めると、その分がどこかの時間帯に移ります。` : "未確定はありません。"}</p>`;
+}
+
+/** 商品×時間帯のシートを作る（Excel共通） */
+function matrixSheet(stamp){
+  const c = DATA.config, mx = itemMatrix();
+  if(!mx.hasVisit || !mx.rows.length) return null;
+  const aoa = [
+    ["商品別　×　来場の時間帯（個数）"], [],
+    ["イベント", c.eventName || ""], ["開催日", c.eventDate || ""], ["出力日時", stamp], [],
+    ["メニュー", "販売元", ...mx.cols.map(l => mx.label(l)), "合計", "単価", "金額"]
+  ];
+  mx.rows.forEach(t => aoa.push([
+    t.name, t.ace ? "エース体操クラブ" : "ふわこっぺ", ...t.cells, t.qty, t.price || "", t.price ? t.price * t.qty : ""
+  ]));
+  aoa.push(["合計", "", ...mx.colTotal, mx.total, "", ""]);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"] = [{wch:24},{wch:17}, ...mx.cols.map(() => ({wch:10})), {wch:8},{wch:8},{wch:11}];
+  ws["!freeze"] = { xSplit:2, ySplit:7 };
+  return ws;
+}
+
+/* ---------- 印刷（A4縦・時間帯ごとにページを変える） ---------- */
+function printPickup(){
+  const c = DATA.config;
+  const groups = pickupBySlot().filter(g => g.rows.length);
+  if(!groups.length){ toast("出力できる注文がありません", true); return; }
+  const stamp = stampNow();
+
+  const mx = itemMatrix();
+  const prep = (!mx.hasVisit || !mx.rows.length) ? "" : `
+    <section class="part">
+      <header>
+        <div><p class="ttl">準備表</p>
+          <p class="ev">${esc(c.eventEn || "ACE EXPO")}${c.eventName ? "　" + esc(c.eventName) : ""}　｜　${esc(c.eventDate || "")}　${esc(c.venue || "")}</p></div>
+        <div class="hr"><p class="slot">商品別 × 時間帯</p>
+          <p class="cnt">全${mx.total}点</p></div>
+      </header>
+      <table class="mx">
+        <thead><tr><th class="mn">メニュー</th>${mx.cols.map(l =>
+          `<th class="q ${l ? "" : "unset"}">${esc(mx.label(l))}</th>`).join("")}<th class="q tt">合計</th></tr></thead>
+        <tbody>
+          ${mx.rows.map(t => `
+            <tr class="${t.ace ? "ace" : ""}">
+              <td class="mn">${esc(t.name)}${t.ace ? '<span class="vd">エース体操クラブ</span>' : ""}</td>
+              ${t.cells.map(n => `<td class="q ${n ? "" : "zero"}">${n || "―"}</td>`).join("")}
+              <td class="q tt">${t.qty}</td>
+            </tr>`).join("")}
+          <tr class="sum"><td class="mn">合計</td>${mx.colTotal.map(n =>
+            `<td class="q">${n}</td>`).join("")}<td class="q tt">${mx.total}</td></tr>
+        </tbody>
+      </table>
+      <footer><span>※取消分は除いています。「未確定」は来場の時間帯が未記入の注文です。</span>
+        <span>${esc(c.eventEn || "ACE EXPO")}　出力 ${stamp}</span></footer>
+    </section>`;
+
+  const section = g => `
+    <section class="part">
+      <header>
+        <div><p class="ttl">お渡しリスト</p>
+          <p class="ev">${esc(c.eventEn || "ACE EXPO")}${c.eventName ? "　" + esc(c.eventName) : ""}　｜　${esc(c.eventDate || "")}　${esc(c.venue || "")}</p></div>
+        <div class="hr">
+          <p class="slot ${g.unset ? "unset" : ""}">${esc(g.label)}</p>
+          <p class="cnt">${g.orders}件 ${g.items}点　${yen(g.sales)}${g.unpaidCount ? `　<b>未清算 ${g.unpaidCount}件</b>` : ""}</p>
+        </div>
+      </header>
+      <table>
+        <thead><tr>
+          <th class="ck">お渡し</th><th class="no">注文番号</th><th class="nm">お名前</th>
+          <th class="qt">点数</th><th class="dt">明細</th><th class="am">金額</th><th class="pd">清算</th>
+        </tr></thead>
+        <tbody>
+          ${g.rows.map(r => `
+            <tr>
+              <td class="ck"></td>
+              <td class="no">${esc(r.no)}</td>
+              <td class="nm">${esc(r.name)}${r.memo ? `<span class="memo">${esc(r.memo)}</span>` : ""}</td>
+              <td class="qt">${r.count}</td>
+              <td class="dt">${esc(r.detail)}${r.ace ? `<span class="aceamt">うちエース ${yen(r.ace)}</span>` : ""}</td>
+              <td class="am">${yen(r.total)}</td>
+              <td class="pd ${r.paid ? "ok" : "ng"}">${r.paid ? "清算済" : "未清算"}</td>
+            </tr>`).join("")}
+          <tr class="sum"><td></td><td></td><td>合計 ${g.orders}件</td>
+              <td class="qt">${g.items}</td><td></td><td class="am">${yen(g.sales)}</td>
+              <td class="pd">${g.unpaidCount ? "未清算 " + g.unpaidCount + "件" : "―"}</td></tr>
+        </tbody>
+      </table>
+      <footer><span>※「未清算」の方はその場で代金をお預かりし、受付で記録してください。渡したら「お渡し」欄にチェック。</span>
+        <span>${esc(c.eventEn || "ACE EXPO")}　出力 ${stamp}</span></footer>
+    </section>`;
+
+  const css = `
+  @page{size:A4 portrait;margin:12mm 11mm}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#E9EAEC}
+  body{font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;color:#151A26;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .bar{position:sticky;top:0;z-index:2;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;
+    padding:12px;background:#1C2A4E;color:#fff;font-size:13px}
+  .bar button{padding:9px 18px;border:0;border-radius:9px;background:#FFB627;color:#151A26;font-weight:900;font-size:14px;cursor:pointer}
+  .part{width:188mm;margin:8mm auto;background:#fff;padding:0 0 4mm;break-after:page;page-break-after:always}
+  header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2pt solid #151A26;padding-bottom:2mm}
+  .ttl{font-size:16pt;font-weight:900;letter-spacing:.14em}
+  .ev{margin-top:1mm;font-size:8pt;color:#555}
+  .hr{text-align:right}
+  .slot{font-size:14pt;font-weight:900}
+  .slot.unset{color:#B4462F}
+  .cnt{margin-top:1mm;font-size:9pt;font-weight:700}
+  .cnt b{color:#B4462F}
+  table{width:100%;border-collapse:collapse;margin-top:2.5mm;table-layout:fixed}
+  thead{display:table-header-group}
+  tr{break-inside:avoid;page-break-inside:avoid}
+  th{font-size:7.5pt;font-weight:700;background:#EEF0F3;border:.4pt solid #9AA0AA;padding:1mm .5mm;text-align:center}
+  td{border:.4pt solid #C2C7CE;padding:1.2mm 1.4mm;font-size:9pt;vertical-align:top}
+  .ck{width:13mm;background:#fff}
+  .no{width:19mm;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
+  .nm{width:36mm;font-size:9.5pt;word-break:break-word}
+  .nm .memo{display:block;margin-top:.6mm;font-size:7pt;color:#8A5A00;line-height:1.4}
+  .qt{width:10mm;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}
+  .dt{font-size:8pt;line-height:1.5;word-break:break-word}
+  .dt .aceamt{display:block;margin-top:.6mm;font-size:7pt;color:#1C5BC4}
+  .am{width:18mm;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+  .pd{width:16mm;text-align:center;font-size:8pt;font-weight:700}
+  .pd.ok{color:#1F7A4D}
+  .pd.ng{color:#B4462F;background:#FDECE8}
+  tr.sum td{border-top:1.2pt solid #151A26;font-weight:900;font-size:9.5pt;background:#F7F8FA}
+  table.mx{table-layout:auto}
+  .mx th.q,.mx td.q{width:22mm;text-align:center;font-variant-numeric:tabular-nums;font-size:11pt;font-weight:700}
+  .mx th.unset{background:#F7E3DE;color:#7A2A17}
+  .mx td.q.zero{color:#C2C7CE;font-weight:400}
+  .mx .tt{background:#F2F3F5}
+  .mx td.mn{font-size:11pt;font-weight:700;padding:2mm 2mm}
+  .mx td.mn .vd{display:block;margin-top:.5mm;font-size:7pt;font-weight:500;color:#1C5BC4}
+  .mx tr.ace td.mn{background:#F6F9FF}
+  .mx tr.sum td{font-size:11pt}
+  tr.sum td.pd{font-size:7.5pt}
+  footer{margin-top:2mm;display:flex;justify-content:space-between;gap:6mm;font-size:7pt;color:#777}
+  @media print{ html,body{background:#fff} .bar{display:none} .part{width:auto;margin:0;padding:0} }`;
+
+  const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>${esc(c.eventEn || "ACE EXPO")}_お渡しリスト</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>${css}</style></head><body>
+    <div class="bar"><span>${groups.map(g => `${g.label} ${g.orders}件`).join("　／　")}</span>
+      <button onclick="print()">印刷／PDFに保存</button>
+      <span>1枚目は商品別の準備表です。PDFにするときは、印刷画面の送信先で「PDFに保存」を選んでください</span></div>
+    ${prep}${groups.map(section).join("")}
+    <script>
+      Promise.race([document.fonts.ready, new Promise(ok => setTimeout(ok, 3000))])
+        .then(() => setTimeout(() => print(), 300));
+    <\/script></body></html>`;
+
+  const w = window.open("", "_blank");
+  if(!w){ toast("ポップアップがブロックされました。許可してからもう一度押してください", true); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
+/* ---------- Excel（時間帯ごとにシートを分ける） ---------- */
+function exportPickupXlsx(){
+  if(typeof XLSX === "undefined"){ toast("Excel機能を読み込めませんでした", true); return; }
+  const c = DATA.config;
+  const groups = pickupBySlot().filter(g => g.rows.length);
+  if(!groups.length){ toast("出力できる注文がありません", true); return; }
+  const stamp = stampNow();
+  const wb = XLSX.utils.book_new(), used = {};
+
+  groups.forEach(g => {
+    const aoa = [
+      ["お渡しリスト　" + g.label], [],
+      ["イベント", c.eventName || ""], ["開催日", c.eventDate || ""], ["会場", c.venue || ""],
+      ["来場の時間帯", g.label],
+      ["件数・点数・金額", `${g.orders}件 ${g.items}点 ${yen(g.sales)}`],
+      ["未清算", g.unpaidCount ? `${g.unpaidCount}件 ${yen(g.unpaid)}` : "なし"],
+      ["出力日時", stamp], [],
+      ["お渡し", "注文番号", "お名前", "電話番号", "点数", "明細", "金額", "うちふわこっぺ", "うちエース", "清算", "受取", "連絡事項"]
+    ];
+    const head = aoa.length;
+    g.rows.forEach(r => aoa.push([
+      "", r.no, r.name, r.tel, r.count, r.detail, r.total,
+      r.fuwa ?? (r.total - (r.ace || 0)), r.ace || 0,
+      r.paid ? "清算済" : "未清算", r.received ? "受取済" : "未受取", r.memo
+    ]));
+    aoa.push(["", "", `合計 ${g.orders}件`, "", g.items, "", g.sales, "", "", "", "", ""]);
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{wch:7},{wch:11},{wch:18},{wch:14},{wch:6},{wch:46},{wch:10},{wch:14},{wch:11},{wch:9},{wch:9},{wch:30}];
+    ws["!freeze"] = { xSplit:0, ySplit:head };
+    ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s:{ r:head-1, c:0 }, e:{ r:head-1+g.rows.length, c:11 } }) };
+    let nm = String(g.label).replace(/[\\\/\?\*\[\]:]/g, "　").slice(0, 28);
+    used[nm] = (used[nm] || 0) + 1;
+    if(used[nm] > 1) nm = nm + used[nm];
+    XLSX.utils.book_append_sheet(wb, ws, nm);
+  });
+
+  const wsMx = matrixSheet(stamp);
+  if(wsMx) XLSX.utils.book_append_sheet(wb, wsMx, "商品別×時間帯");
+
+  // 突き合わせシート（来場予約と注文）
+  const v = DATA.visit;
+  const match = [["来場予約と注文の突き合わせ"], [], ["出力日時", stamp], [],
+    ["来場の時間帯", "来場予約（組）", "来場予約（名）", "注文件数", "点数", "売上（予定）", "未清算"]];
+  (DATA.order.byVisit || []).forEach(b => {
+    const s = v.slots.find(x => x.label === b.label);
+    match.push([b.label || UNSET, s ? s.groups : "", s ? s.total : "", b.orders, b.items, b.sales, b.unpaid]);
+  });
+  match.push(["合計", v.groups, v.total, DATA.order.count, DATA.order.itemCount, DATA.order.sales, DATA.order.unpaidAmount]);
+  const wsM = XLSX.utils.aoa_to_sheet(match);
+  wsM["!cols"] = [{wch:16},{wch:14},{wch:14},{wch:10},{wch:8},{wch:13},{wch:13}];
+  XLSX.utils.book_append_sheet(wb, wsM, "突き合わせ");
+
+  const n = new Date();
+  XLSX.writeFile(wb, `ACE-EXPO_お渡しリスト_${n.getFullYear()}${String(n.getMonth()+1).padStart(2,"0")}${String(n.getDate()).padStart(2,"0")}.xlsx`);
+  toast("お渡しリストを出力しました");
+}
+
+/* ---------- 発注書のExcel出力 ---------- */
+function exportXlsx(){
+  if(typeof XLSX === "undefined"){ toast("Excel機能を読み込めませんでした", true); return; }
+
+  const o = DATA.order, c = DATA.config;
+  const now = new Date();
+  const stamp = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()} ` +
+                `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+
+  // メニュー全件に注文数を突き合わせる（0個の商品も残して発注漏れを防ぐ）
+  const qtyOf = {};
+  o.tally.forEach(t => qtyOf[t.name] = t.qty);
+  const base = (o.menu && o.menu.length)
+    ? o.menu.map(m => ({ name:m.name, price:m.price, qty:qtyOf[m.name] || 0, ace:!!m.ace }))
+    : o.tally.map(t => ({ name:t.name, price:t.price, qty:t.qty, ace:!!t.ace }));
+  // メニューにない商品（過去メニューなど）も拾う
+  o.tally.forEach(t => { if(!base.some(b => b.name === t.name)) base.push({ name:t.name, price:t.price, qty:t.qty, ace:!!t.ace }); });
+
+  const info = [
+    ["イベント", c.eventName || ""],
+    ["開催日",   c.eventDate || ""],
+    ["会場",     c.venue || ""],
+    ["出力日時", stamp],
+    ["注文件数", `${o.count}件（キャンセル${o.cancelled || 0}件を除く）`]
+  ];
+
+  /* 発注書シートを作る（販売元ごと） */
+  const orderSheet = (title, items) => {
+    const head = [[title], [], ...info, [], ["No", "メニュー名", "単価", "必要数", "金額"]];
+    const startRow = head.length + 1;               // データ開始行（1始まり）
+    const rows = items.map((b, i) => [i + 1, b.name, b.price, b.qty, { f: `C${startRow+i}*D${startRow+i}` }]);
+    const endRow = startRow + Math.max(items.length, 1) - 1;
+    const total = ["", "合計", "",
+      { f: `SUM(D${startRow}:D${endRow})` },
+      { f: `SUM(E${startRow}:E${endRow})` }];
+    const ws = XLSX.utils.aoa_to_sheet([...head, ...(rows.length ? rows : [["", "（注文なし）", 0, 0, 0]]), total]);
+    ws["!cols"] = [{wch:5},{wch:26},{wch:9},{wch:9},{wch:12}];
+    for(let r = startRow; r <= endRow + 1; r++){
+      ["C","E"].forEach(col => { const cell = ws[col + r]; if(cell) cell.z = '#,##0'; });
+    }
+    return ws;
+  };
+  const wsFuwa = orderSheet("ふわこっぺ　発注書", base.filter(b => !b.ace));
+  const wsAce  = orderSheet("エース体操クラブ販売　集計", base.filter(b => b.ace));
+
+  /* --- 精算シート：販売元別の金額（ふわこっぺへの入金額） --- */
+  const sp = splitOf(o);
+  const settle = [
+    ["販売元別　精算表"], [], ...info, [],
+    ["販売元", "点数", "売上（予定）", "清算済", "未清算"],
+    ["ふわこっぺ",       sp.fuwa.items, sp.fuwa.sales, sp.fuwa.paid, sp.fuwa.unpaid],
+    ["エース体操クラブ", sp.ace.items,  sp.ace.sales,  sp.ace.paid,  sp.ace.unpaid],
+    ["合計", o.itemCount, o.sales, o.paidAmount, o.unpaidAmount],
+    [],
+    ["ふわこっぺへの入金額（清算済分）", "", sp.fuwa.paid],
+    ["ふわこっぺへの入金額（全注文分）", "", sp.fuwa.sales],
+    ["※清算済＝受付で代金を受け取った注文。全注文分＝キャンセルを除くすべての注文。"]
+  ];
+  const ws0 = XLSX.utils.aoa_to_sheet(settle);
+  ws0["!cols"] = [{wch:32},{wch:8},{wch:13},{wch:13},{wch:13}];
+  Object.keys(ws0).forEach(k => { const cell = ws0[k]; if(cell && typeof cell.v === "number" && /^[C-E]/.test(k)) cell.z = '#,##0'; });
+
+  /* --- 注文一覧 --- */
+  const list = [["注文番号","お名前","電話番号","点数","金額","うちふわこっぺ","うちエース","明細","支払","受取","状況","受付日時"]];
+  o.rows.forEach(r => list.push([
+    r.no, r.name, r.tel, r.count, r.total, r.fuwa ?? r.total, r.ace || 0, r.detail,
+    r.paid ? "支払済" : "未払",
+    r.received ? "受取済" : "未受取",
+    r.status || "確定", r.at
+  ]));
+  const ws2 = XLSX.utils.aoa_to_sheet(list);
+  ws2["!cols"] = [{wch:11},{wch:16},{wch:14},{wch:6},{wch:10},{wch:13},{wch:11},{wch:46},{wch:8},{wch:8},{wch:10},{wch:12}];
+  ws2["!autofilter"] = { ref: `A1:L${list.length}` };
+
+  const wb = XLSX.utils.book_new();
+  const wsMx2 = matrixSheet(stamp);
+  if(wsMx2) XLSX.utils.book_append_sheet(wb, wsMx2, "商品別×時間帯");
+  XLSX.utils.book_append_sheet(wb, ws0,    "精算（販売元別）");
+  XLSX.utils.book_append_sheet(wb, wsFuwa, "ふわこっぺ発注書");
+  XLSX.utils.book_append_sheet(wb, wsAce,  "エース体操クラブ");
+  XLSX.utils.book_append_sheet(wb, ws2,    "注文一覧");
+
+  const fn = `ACE-EXPO_発注書_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}.xlsx`;
+  XLSX.writeFile(wb, fn);
+  toast("発注書を出力しました");
+}
+
+/* ---------- 注文書・領収書（A4＝上：注文書A5／下：領収書A5） ---------- */
+function openOrderDocs(list){
+  const o = DATA.order, c = DATA.config;
+  // 商品名 → 単価・販売元（表示中メニュー＋集計にある過去メニュー）
+  const info = {};
+  (o.tally || []).forEach(t => info[t.name] = { price:t.price, ace:!!t.ace });
+  (o.menu  || []).forEach(m => info[m.name] = { price:m.price, ace:!!m.ace });
+
+  const parse = detail => String(detail || "").split("/").map(x => x.trim()).filter(Boolean).map(x => {
+    const i = x.lastIndexOf("×");
+    const name = i < 0 ? x : x.slice(0, i).trim(), qty = i < 0 ? 1 : Number(x.slice(i + 1)) || 0;
+    const m = info[name] || { price:0, ace:false };
+    return { name, qty, price:m.price, sub:m.price * qty, ace:m.ace };
+  });
+  const sorted = [...list].sort((a, b) => String(a.no).localeCompare(String(b.no), "ja", { numeric:true }));
+
+  const page = r => {
+    const items = parse(r.detail);
+    const fuwa = items.filter(i => !i.ace), ace = items.filter(i => i.ace);
+    const fuwaAmt = r.fuwa ?? (r.total - (r.ace || 0)), aceAmt = r.ace || 0;
+    const lineRows = (arr, vendor) => arr.map(i => `
+      <tr><td class="v">${vendor}</td><td>${esc(i.name)}</td>
+          <td class="n">${i.price ? yen(i.price) : "―"}</td><td class="n">${i.qty}</td>
+          <td class="n">${i.price ? yen(i.sub) : "―"}</td></tr>`).join("");
+    const many = items.length > 8 ? " many" : "";
+    const ck = on => on ? "☑" : "☐";
+
+    return `
+    <section class="page">
+      <div class="half order${many}">
+        <div class="hd">
+          <div><p class="ttl">注 文 書</p>
+               <p class="ev">${esc(c.eventEn || "ACE EXPO")}　ふわこっぺ注文${c.eventDate ? "　｜　" + esc(c.eventDate) : ""}</p></div>
+          <div class="nobox"><span>注文番号</span><b>${esc(r.no)}</b></div>
+        </div>
+        <div class="who">
+          <p class="name">${esc(r.name)}<small>様</small></p>
+          <p class="meta">${r.tel ? "TEL " + esc(r.tel) + "　" : ""}受付 ${esc(r.at)}</p>
+        </div>
+        <table class="items">
+          <thead><tr><th class="v">販売元</th><th>品名</th><th class="n">単価</th><th class="n">数量</th><th class="n">金額</th></tr></thead>
+          <tbody>
+            ${lineRows(fuwa, "ふわこっぺ")}
+            ${fuwa.length && ace.length ? `<tr class="sub"><td colspan="4">ふわこっぺ　小計</td><td class="n">${yen(fuwaAmt)}</td></tr>` : ""}
+            ${lineRows(ace, "エース体操クラブ")}
+            ${fuwa.length && ace.length ? `<tr class="sub ace"><td colspan="4">エース体操クラブ　小計</td><td class="n">${yen(aceAmt)}</td></tr>` : ""}
+          </tbody>
+          <tfoot><tr><td colspan="3">合計</td><td class="n">${r.count}点</td><td class="n">${yen(r.total)}</td></tr></tfoot>
+        </table>
+        <div class="foot">
+          <p class="memo">${r.memo ? "連絡事項：" + esc(r.memo) : ""}</p>
+          <p class="checks">${ck(r.paid)} 清算済　　${ck(r.received)} 受取済</p>
+        </div>
+      </div>
+
+      <div class="cut"><span>✂ きりとり</span></div>
+
+      <div class="half receipt">
+        <div class="rhd">
+          <p class="ttl">領 収 書</p>
+          <p class="rno">No. ${esc(r.no)}<br>　　　　年　　月　　日</p>
+        </div>
+        <p class="to">${esc(r.name)}<small>様</small></p>
+        <div class="amt"><span>金額</span><b>${yen(r.total)}<i>－</i></b><small>（税込）</small></div>
+        <p class="tadashi">但し　${esc(c.eventEn || "ACE EXPO")} 飲食代として<br>上記正に領収いたしました。</p>
+        <div class="rbottom">
+          <table class="bd">
+            <tr><th colspan="2">内訳</th></tr>
+            <tr><td>ふわこっぺ</td><td class="n">${yen(fuwaAmt)}</td></tr>
+            ${aceAmt ? `<tr><td>エース体操クラブ</td><td class="n">${yen(aceAmt)}</td></tr>` : ""}
+          </table>
+          <div class="issuer">
+            <p class="org">${esc(c.eventName || "")}</p>
+            <p class="addr">${esc(c.venue || "")}</p>
+            <div class="stamp">印</div>
+          </div>
+        </div>
+      </div>
+    </section>`;
+  };
+
+  const css = `
+  @page{size:A4 portrait;margin:0}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#E9EAEC}
+  body{font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;color:#151A26;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .bar{position:sticky;top:0;z-index:2;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;
+    padding:12px;background:#1C2A4E;color:#fff;font-size:13px}
+  .bar button{padding:9px 18px;border:0;border-radius:9px;background:#FFB627;color:#151A26;font-weight:900;font-size:14px;cursor:pointer}
+  .page{width:210mm;height:297mm;margin:8mm auto;background:#fff;position:relative;overflow:hidden;
+    box-shadow:0 2px 10px rgba(0,0,0,.15);break-after:page;page-break-after:always}
+  .half{height:148.5mm;padding:11mm 15mm 9mm;position:relative}
+  .n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ttl{font-size:21pt;font-weight:900;letter-spacing:.12em}
+  /* 注文書 */
+  .hd{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.2pt solid #151A26;padding-bottom:2.5mm}
+  .ev{margin-top:1mm;font-size:8.5pt;color:#555}
+  .nobox{border:1.6pt solid #151A26;border-radius:2mm;padding:1.6mm 4mm;text-align:center;min-width:40mm}
+  .nobox span{display:block;font-size:7.5pt;color:#555;letter-spacing:.1em}
+  .nobox b{display:block;font-size:22pt;line-height:1.15;letter-spacing:.04em}
+  .who{display:flex;justify-content:space-between;align-items:baseline;margin:3.5mm 0 2.5mm}
+  .name{font-size:15pt;font-weight:700}.name small,.to small{font-size:10pt;margin-left:2mm;font-weight:500}
+  .meta{font-size:8.5pt;color:#555}
+  table{border-collapse:collapse;width:100%}
+  .items th{font-size:8pt;font-weight:700;text-align:left;background:#EEF0F3;padding:1.4mm 2mm;border-bottom:.8pt solid #151A26}
+  .items th.n{text-align:right}
+  .items td{font-size:10pt;padding:1.5mm 2mm;border-bottom:.4pt solid #C9CDD4}
+  .items .v{width:30mm;font-size:8pt;color:#555}
+  .items tr.sub td{font-size:8.5pt;font-weight:700;background:#FFF6E0;text-align:right}
+  .items tr.sub.ace td{background:#E9F1FF}
+  .items tfoot td{font-size:12pt;font-weight:900;border-top:1.4pt solid #151A26;border-bottom:none;padding-top:2mm}
+  .items tfoot td:first-child{text-align:right;letter-spacing:.3em}
+  .many .items td{font-size:8.5pt;padding:.9mm 2mm}
+  .foot{position:absolute;left:15mm;right:15mm;bottom:8mm;display:flex;justify-content:space-between;gap:6mm;font-size:9pt}
+  .memo{flex:1;color:#333}
+  .checks{white-space:nowrap;font-size:10.5pt;font-weight:700}
+  /* 切り取り線 */
+  .cut{position:absolute;left:0;right:0;top:148.5mm;border-top:.8pt dashed #888;height:0}
+  .cut span{position:absolute;left:50%;top:-2.2mm;transform:translateX(-50%);background:#fff;padding:0 3mm;font-size:7pt;color:#888;line-height:4mm}
+  /* 領収書 */
+  .rhd{display:flex;justify-content:center;position:relative;padding-top:1mm}
+  .receipt .ttl{font-size:22pt;letter-spacing:.5em;padding-left:.5em;border-bottom:1.6pt double #151A26}
+  .rno{position:absolute;right:0;top:0;font-size:8.5pt;text-align:right;line-height:1.7;color:#333}
+  .to{margin-top:7mm;font-size:16pt;font-weight:700;width:105mm;border-bottom:.8pt solid #151A26;padding:0 2mm 1mm}
+  .amt{margin:6mm auto 0;width:130mm;display:flex;align-items:baseline;gap:5mm;background:#F2F3F5;border-radius:2mm;padding:3mm 7mm}
+  .amt span{font-size:10pt;font-weight:700;letter-spacing:.3em}
+  .amt b{flex:1;text-align:center;font-size:27pt;font-weight:900;letter-spacing:.04em}
+  .amt b i{font-style:normal;margin-left:1mm}
+  .amt small{font-size:8.5pt;color:#555}
+  .tadashi{margin:4.5mm 0 0 22mm;font-size:10pt;line-height:1.8}
+  .rbottom{position:absolute;left:15mm;right:15mm;bottom:9mm;display:flex;justify-content:space-between;align-items:flex-end}
+  .bd{width:72mm}
+  .bd th{font-size:8pt;text-align:left;padding:1mm 2mm;background:#EEF0F3}
+  .bd td{font-size:9.5pt;padding:1.1mm 2mm;border-bottom:.4pt solid #C9CDD4}
+  .issuer{position:relative;text-align:right;padding-right:20mm;min-height:18mm}
+  .org{font-size:12pt;font-weight:700}
+  .addr{font-size:8.5pt;color:#555;margin-top:.8mm}
+  .stamp{position:absolute;right:0;top:-1mm;width:17mm;height:17mm;border:.6pt solid #AAA;border-radius:50%;
+    display:grid;place-items:center;font-size:8pt;color:#AAA}
+  @media print{
+    html,body{background:#fff}
+    .bar{display:none}
+    .page{margin:0;box-shadow:none}
+  }`;
+
+  const first = sorted[0].no, last = sorted[sorted.length - 1].no;
+  const title = `ACE-EXPO_注文書領収書_${first}${sorted.length > 1 ? "-" + last : ""}`;
+  const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>${esc(title)}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>${css}</style></head><body>
+    <div class="bar"><span>${sorted.length}件（A4 ${sorted.length}枚）</span>
+      <button onclick="print()">PDFに保存／印刷</button>
+      <span>印刷画面の送信先で「PDFに保存」を選んでください</span></div>
+    ${sorted.map(page).join("")}
+    <script>
+      // フォントの読み込みを待ってから印刷画面を開く（最大3秒）
+      Promise.race([document.fonts.ready, new Promise(ok => setTimeout(ok, 3000))])
+        .then(() => setTimeout(() => print(), 300));
+    <\/script></body></html>`;
+
+  const w = window.open("", "_blank");
+  if(!w){ toast("ポップアップがブロックされました。許可してからもう一度押してください", true); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
+/* ---------- 部品 ---------- */
+function bindSearch(inputId, bodyId){
+  const inp = document.getElementById(inputId);
+  if(!inp) return;
+  inp.oninput = () => {
+    const q = inp.value.trim().toLowerCase();
+    document.getElementById(bodyId).querySelectorAll("tr").forEach(tr => {
+      tr.style.display = !q || (tr.dataset.search || "").toLowerCase().includes(q) ? "" : "none";
+    });
+  };
+}
+
+function bindActions(){
+  document.querySelectorAll("button[data-act]").forEach(b => {
+    b.onclick = async () => {
+      const label = b.textContent;
+      b.disabled = true; b.textContent = "更新中…";
+      const ok = await update(b.dataset.act, b.dataset.no, b.dataset.val);
+      if(ok){ toast("更新しました"); await refresh(); }
+      else { b.disabled = false; b.textContent = label; }
+    };
+  });
+}
+
+let toastTimer = null;
+function toast(msg, bad){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.toggle("bad", !!bad);
+  t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("on"), 2200);
+}
+
+function renderAll(){
+  renderKeyWarn();
+  document.getElementById("mark").firstChild.nodeValue = DATA.config.eventEn || "ACE EXPO";
+  document.getElementById("mark-sub").textContent = "管理ページ";
+  document.getElementById("stamp").textContent = "最終更新 " + (DATA.updatedAt || "");
+  renderVisit(); renderOrder(); renderConfig();
+}
+
+async function refresh(){
+  const btn = document.getElementById("reload");
+  btn.disabled = true; btn.textContent = "更新中…";
+  showBusy("更新しています…");
+  try{ await load(); renderAll(); }
+  catch(e){
+    toast(e.message || "読み込みに失敗しました", true);
+    if(DATA) document.getElementById("stamp").textContent = "⚠ 更新に失敗しました。表示は古い情報です（最終更新 " + (DATA.updatedAt || "") + "）";
+  }
+  finally{ hideBusy(); }
+  btn.disabled = false; btn.textContent = "更新";
+}
+
+function switchTab(which){
+  ["visit","order","config"].forEach(k => {
+    document.getElementById("t-" + k).setAttribute("aria-selected", k === which);
+    document.getElementById("p-" + k).hidden = k !== which;
+  });
+  window.scrollTo(0, 0);
+}
+["visit","order","config"].forEach(k => {
+  document.getElementById("t-" + k).onclick = () => switchTab(k);
+});
+document.getElementById("reload").onclick = refresh;
+
+/* ---------- 起動 ---------- */
+async function start(){
+  document.getElementById("loaderr").classList.remove("on");
+  showBusy("読み込んでいます…");
+  try{
+    await load();
+    renderAll();
+    document.body.style.overflow = "";
+  }catch(e){
+    console.warn("読み込み失敗", e);
+    document.getElementById("loaderr").classList.add("on");
+    document.body.style.overflow = "hidden";
+  }finally{ hideBusy(); }
+}
+document.getElementById("loaderr-retry").onclick = start;
+start();
+</script>
+</body>
+</html>
